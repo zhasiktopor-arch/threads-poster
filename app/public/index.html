@@ -85,7 +85,8 @@ header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12p
 .preview div:last-child{border:0}
 .preview b{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted);font-weight:600}
 .preview span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.day{padding:4px 16px 10px}
+.just{margin:0 16px 8px;padding:10px 12px;border-radius:12px;background:var(--infobg);border:1px solid color-mix(in srgb,var(--info) 35%,transparent)}
+.just h3{margin:0 0 6px;font-size:13px;color:var(--info)}
 .dayh{position:sticky;top:0;background:var(--panel);font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:12px 0 8px;font-weight:600;z-index:1;display:flex;gap:8px}
 .post{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:12px;padding:12px 0;border-top:1px solid var(--soft);align-items:start}
 .post:first-of-type{border-top:0}
@@ -157,7 +158,7 @@ code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12.5px}
 <div class="wrap">
   <div class="dlbar" id="dlBar">
     <span>Установщик для Windows. Скачай архив, распакуй и запусти Install.bat — старые посты сохранятся.</span>
-    <a href="https://github.com/zhasiktopor-arch/threads-poster/releases/download/v1.2/ThreadsPoster-windows.zip"><button type="button">Скачать ZIP</button></a>
+    <a href="https://github.com/zhasiktopor-arch/threads-poster/releases/download/v1.3/ThreadsPoster-windows.zip"><button type="button">Скачать ZIP</button></a>
   </div>
   <header>
     <div class="logo">
@@ -222,16 +223,19 @@ code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12.5px}
         </section>
       </div>
 
-      <section class="panel">
-        <h2>Расписание <span class="grow"></span>
-          <input id="q" class="search" placeholder="Поиск" aria-label="Поиск по тексту постов">
-          <button type="button" class="slim" id="openQueue">Очередь</button>
-          <div class="seg" id="filterSeg" style="font-weight:400">
-            <button type="button" data-f="upcoming" class="on">Впереди</button>
-            <button type="button" data-f="done">Вышло</button>
-            <button type="button" data-f="all">Все</button>
+      <section class="panel" id="schedule">
+        <h2>Расписание <span class="grow"></span><span class="hint" id="schedHint"></span></h2>
+        <div class="pbody" style="padding-bottom:0">
+          <div class="row" style="flex-wrap:wrap;margin-bottom:8px">
+            <input id="q" class="search" placeholder="Поиск" aria-label="Поиск по тексту постов">
+            <button type="button" class="slim" id="openQueue">Очередь</button>
+            <div class="seg" id="filterSeg" style="font-weight:400">
+              <button type="button" data-f="upcoming" class="on">Впереди</button>
+              <button type="button" data-f="done">Вышло</button>
+              <button type="button" data-f="all">Все</button>
+            </div>
           </div>
-        </h2>
+        </div>
         <div id="timeline"></div>
       </section>
     </div>
@@ -242,7 +246,7 @@ code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12.5px}
       <h3>Как запустить</h3>
       <p>То, что вы видите здесь, — пример. На компьютере программа ставится один раз, дальше открывается значком.</p>
       <ol>
-        <li>Скачай архив: <a href="https://github.com/zhasiktopor-arch/threads-poster/releases/download/v1.2/ThreadsPoster-windows.zip">Threads Poster для Windows</a>. Кнопка сверху ведёт туда же.</li>
+        <li>Скачай архив: <a href="https://github.com/zhasiktopor-arch/threads-poster/releases/download/v1.3/ThreadsPoster-windows.zip">Threads Poster для Windows</a>. Кнопка сверху ведёт туда же.</li>
         <li>Правой кнопкой по архиву → <b>Извлечь всё…</b>. Из самого архива не запускать — сначала распаковать.</li>
         <li>В распакованной папке дважды кликните <b>Install.bat</b>. Рядом лежит файл «КАК ЗАПУСТИТЬ.txt» с этими же шагами.</li>
         <li>Если Windows пишет «Система Windows защитила ваш компьютер» — <b>Подробнее</b> → <b>Выполнить в любом случае</b>. Это один раз.</li>
@@ -413,6 +417,7 @@ code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12.5px}
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 let S = null, skew = 0, mode = 'slots', filter = 'upcoming', lastLogId = 0, editId = null, query = '';
+let freshIds = new Set();
 let projectId = Number(localStorage.getItem('tp_project') || 0) || 0;
 let projEditId = null, projColor = '#111111';
 const MAXLEN = 500;
@@ -510,9 +515,14 @@ $('#addBtn').onclick = async () => {
       if (!confirm(e.message)) { updateCompose(); return; }
       r = await send(true);
     }
-    $('#compose').value = ''; updateCompose();
-    toast(`В «${S.project.name}» добавлено: ${r.count}`);
-    load();
+    $('#compose').value = '';
+    freshIds = new Set(r.ids || []);
+    filter = 'upcoming';
+    $$('#filterSeg button').forEach((x) => x.classList.toggle('on', x.dataset.f === 'upcoming'));
+    updateCompose();
+    toast(`В «${S.project.name}» добавлено: ${r.count}. Смотри расписание сверху.`);
+    await load();
+    document.querySelector('#schedule')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (e) { toast(e.message); updateCompose(); }
 };
 
@@ -584,13 +594,16 @@ function render() {
   renderBanner();
 
   const posts = S.posts;
-  const queued = posts.filter((p) => p.status === 'queued');
+  const mine = S.projects.find((p) => p.id === S.project.id);
+  const queuedTotal = S.queued_total ?? mine?.queued ?? posts.filter((p) => p.status === 'queued').length;
   const t0 = new Date(now()); t0.setHours(0, 0, 0, 0);
   const today = posts.filter((p) => p.status === 'published' && p.published_at >= +t0);
   const bad = posts.filter((p) => p.status === 'failed' || p.status === 'missed');
-  $('#cQueued').textContent = queued.length;
-  const last = queued.at(-1);
-  $('#cQueuedS').textContent = last ? `до ${new Date(last.scheduled_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}` : 'пусто';
+  $('#cQueued').textContent = queuedTotal;
+  const upcoming = posts.filter((p) => p.status === 'queued').sort((a, b) => a.scheduled_at - b.scheduled_at);
+  const last = upcoming.at(-1);
+  $('#cQueuedS').textContent = S.posts_capped ? `на экране ближайшие, всего ${queuedTotal}` : (last ? `до ${new Date(last.scheduled_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}` : 'пусто');
+  $('#schedHint').textContent = queuedTotal ? `${queuedTotal} в очереди` : '';
   $('#cToday').textContent = today.length;
   $('#cTodayS').textContent = today.length ? `последний в ${hm(today.at(-1).published_at)}` : ' ';
   $('#cBad').textContent = bad.length;
@@ -608,13 +621,37 @@ function badge(p) {
   if (p.status === 'published') return p.simulated ? '<span class="badge b-test">тест ✓</span>' : '<span class="badge b-published">опубликован</span>';
   return { queued: '<span class="badge b-queued">в очереди</span>', publishing: '<span class="badge b-publishing">публикуется…</span>', failed: '<span class="badge b-failed">ошибка</span>', missed: '<span class="badge b-missed">пропущен</span>' }[p.status] || '';
 }
+function postCard(p, next) {
+  const ts = p.status === 'published' ? p.published_at : p.scheduled_at;
+  const editable = !['published', 'publishing'].includes(p.status);
+  const late = p.status === 'published' && p.published_at - p.scheduled_at > 5 * 60e3 ? ` · план ${hm(p.scheduled_at)}` : '';
+  return `<div class="post ${p.status} ${next && p.id === next.id ? 'next' : ''}" data-id="${p.id}">
+    <div class="time">${hm(ts)}<small>#${p.id}</small></div>
+    <div>
+      <div class="txt">${esc(p.text)}</div>
+      <div class="meta">${badge(p)}<span>${clen(p.text)} симв.${late}</span>
+        ${p.permalink ? `<a href="${esc(p.permalink)}" target="_blank" rel="noopener">открыть в Threads ↗</a>` : ''}</div>
+      ${p.error && p.status !== 'published' ? `<div class="err">${esc(p.error)}</div>` : ''}
+    </div>
+    <div class="acts">
+      ${editable ? `<button class="ghost" type="button" data-act="now" title="Опубликовать сейчас">▶</button><button class="ghost" type="button" data-act="edit" title="Изменить или перенести в другой проект">✎</button><button class="ghost" type="button" data-act="dup" title="Дублировать в этом проекте">⧉</button>` : ''}
+      ${p.status !== 'publishing' ? `<button class="ghost" type="button" data-act="del" title="Удалить">🗑</button>` : ''}
+    </div>
+  </div>`;
+}
 function renderTimeline() {
-  let list = S.posts.slice();
+  const fresh = S.posts.filter((p) => freshIds.has(p.id)).sort((a, b) => a.scheduled_at - b.scheduled_at);
+  const freshSet = new Set(fresh.map((p) => p.id));
+  let list = S.posts.filter((p) => !freshSet.has(p.id));
   if (filter === 'upcoming') list = list.filter((p) => p.status !== 'published');
   if (filter === 'done') list = list.filter((p) => p.status === 'published').reverse();
-  if (query) list = list.filter((p) => p.text.toLowerCase().includes(query));
+  if (query) {
+    const hit = (p) => p.text.toLowerCase().includes(query);
+    list = list.filter(hit);
+  }
   const next = S.posts.find((p) => p.status === 'queued');
-  if (!list.length) {
+  const freshHtml = fresh.length ? `<div class="just"><h3>Только что добавлено · ${fresh.length}</h3>${fresh.map((p) => postCard(p, next)).join('')}</div>` : '';
+  if (!list.length && !fresh.length) {
     const msg = query ? 'Ничего не найдено' : filter === 'done' ? 'Пока ничего не вышло' : 'Очередь этого проекта пуста';
     $('#timeline').innerHTML = `<div class="empty">${msg}</div>`;
     return;
@@ -626,26 +663,10 @@ function renderTimeline() {
     if (!groups.has(k)) groups.set(k, { ts, items: [] });
     groups.get(k).items.push(p);
   }
-  $('#timeline').innerHTML = [...groups.values()].map((g) => `
+  const more = S.posts_capped && filter !== 'done' ? `<div class="empty">В очереди ещё есть посты. Здесь ближайшие и только что добавленные, чтобы новые не терялись в хвосте.</div>` : '';
+  $('#timeline').innerHTML = freshHtml + [...groups.values()].map((g) => `
     <div class="day"><div class="dayh">${esc(dayLabel(g.ts))} <span>· ${g.items.length}</span></div>
-    ${g.items.map((p) => {
-      const ts = p.status === 'published' ? p.published_at : p.scheduled_at;
-      const editable = !['published', 'publishing'].includes(p.status);
-      const late = p.status === 'published' && p.published_at - p.scheduled_at > 5 * 60e3 ? ` · план ${hm(p.scheduled_at)}` : '';
-      return `<div class="post ${p.status} ${next && p.id === next.id ? 'next' : ''}" data-id="${p.id}">
-        <div class="time">${hm(ts)}<small>#${p.id}</small></div>
-        <div>
-          <div class="txt">${esc(p.text)}</div>
-          <div class="meta">${badge(p)}<span>${clen(p.text)} симв.${late}</span>
-            ${p.permalink ? `<a href="${esc(p.permalink)}" target="_blank" rel="noopener">открыть в Threads ↗</a>` : ''}</div>
-          ${p.error && p.status !== 'published' ? `<div class="err">${esc(p.error)}</div>` : ''}
-        </div>
-        <div class="acts">
-          ${editable ? `<button class="ghost" type="button" data-act="now" title="Опубликовать сейчас">▶</button><button class="ghost" type="button" data-act="edit" title="Изменить или перенести в другой проект">✎</button><button class="ghost" type="button" data-act="dup" title="Дублировать в этом проекте">⧉</button>` : ''}
-          ${p.status !== 'publishing' ? `<button class="ghost" type="button" data-act="del" title="Удалить">🗑</button>` : ''}
-        </div>
-      </div>`;
-    }).join('')}</div>`).join('');
+    ${g.items.map((p) => postCard(p, next)).join('')}</div>`).join('') + more;
 }
 $('#timeline').addEventListener('click', async (e) => {
   const post = e.target.closest('.post'); if (!post) return;
@@ -870,10 +891,14 @@ $('#delProject').onclick = async () => {
 function unpublishedTexts() {
   return S.posts.filter((p) => p.status !== 'published' && p.status !== 'publishing').map((p) => p.text);
 }
+async function allUnpublishedTexts() {
+  const j = await api('GET', '/api/posts/texts');
+  return j.texts || [];
+}
 $('#openQueue').onclick = () => {
-  const posts = S.posts;
-  const queued = posts.filter((p) => p.status === 'queued').length;
-  const bad = posts.filter((p) => p.status === 'failed' || p.status === 'missed').length;
+  const mine = S.projects.find((p) => p.id === S.project.id) || {};
+  const queued = mine.queued ?? S.queued_total ?? 0;
+  const bad = mine.problems ?? 0;
   $('#queueHint').textContent = `«${S.project.name}». Ожидают: ${queued}. Ошибки и пропуски: ${bad}.`;
   for (const id of ['qClearQueued', 'qClearBad', 'qClearAll', 'qRequeue']) {
     const b = $('#' + id); b.dataset.armed = '';
@@ -896,13 +921,13 @@ async function arm(btn, run) {
   await run();
 }
 $('#qCopy').onclick = async () => {
-  const list = unpublishedTexts();
+  const list = await allUnpublishedTexts();
   if (!list.length) return toast('Нечего копировать');
   try { await navigator.clipboard.writeText(list.join('\n---\n')); toast(`Скопировано постов: ${list.length}`); }
   catch { toast('Не удалось скопировать'); }
 };
-$('#qDownload').onclick = () => {
-  const list = unpublishedTexts();
+$('#qDownload').onclick = async () => {
+  const list = await allUnpublishedTexts();
   if (!list.length) return toast('Очередь пуста');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([list.join('\n---\n') + '\n'], { type: 'text/plain;charset=utf-8' }));

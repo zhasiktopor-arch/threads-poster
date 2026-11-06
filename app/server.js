@@ -578,9 +578,15 @@ function resolveProject(id) {
 function state(pid) {
   const proj = resolveProject(pid);
   const since = Date.now() - 14 * 86400e3;
-  const posts = db.prepare(`SELECT id, text, scheduled_at, status, attempts, permalink, error, simulated, published_at
-    FROM posts WHERE project_id=? AND (status IN ('queued','publishing','failed','missed') OR scheduled_at > ? OR published_at > ?)
-    ORDER BY scheduled_at, id`).all(proj.id, since, since);
+  const cols = `id, text, scheduled_at, status, attempts, permalink, error, simulated, published_at, created_at`;
+  const soon = db.prepare(`SELECT ${cols} FROM posts WHERE project_id=? AND status='queued' ORDER BY scheduled_at, id LIMIT 40`).all(proj.id);
+  const fresh = db.prepare(`SELECT ${cols} FROM posts WHERE project_id=? ORDER BY id DESC LIMIT 20`).all(proj.id);
+  const problems = db.prepare(`SELECT ${cols} FROM posts WHERE project_id=? AND status IN ('failed','missed') ORDER BY scheduled_at DESC LIMIT 30`).all(proj.id);
+  const done = db.prepare(`SELECT ${cols} FROM posts WHERE project_id=? AND status='published' AND published_at>? ORDER BY published_at DESC LIMIT 20`).all(proj.id, since);
+  const byId = new Map();
+  for (const row of [...fresh, ...soon, ...problems, ...done]) byId.set(row.id, row);
+  const posts = [...byId.values()].sort((a, b) => a.scheduled_at - b.scheduled_at || a.id - b.id);
+  const queuedTotal = db.prepare("SELECT COUNT(*) c FROM posts WHERE project_id=? AND status='queued'").get(proj.id).c;
   const logRows = db.prepare(`SELECT id, ts, level, msg, post_id FROM log
     WHERE project_id=? OR project_id IS NULL ORDER BY id DESC LIMIT 150`).all(proj.id);
   return {
@@ -589,7 +595,8 @@ function state(pid) {
     projects: listProjects(),
     colors: COLORS,
     settings: publicSettings(proj.id),
-    posts, log: logRows, maxLen: MAX_LEN,
+    posts, queued_total: queuedTotal, posts_capped: queuedTotal > soon.length,
+    log: logRows, maxLen: MAX_LEN,
     installer: fs.existsSync(path.join(__dirname, 'ThreadsPoster-windows.zip')),
   };
 }
@@ -700,10 +707,12 @@ function addPosts(pid, b) {
     times = texts.map((_, i) => Date.now() + i * step);
   } else throw bad('Неизвестный режим');
   const now = Date.now();
-  texts.forEach((t, i) => insPost.run(pid, t, times[i], 'queued', now));
+  const ids = [];
+  const info = db.prepare('INSERT INTO posts(project_id, text, scheduled_at, status, created_at) VALUES(?,?,?,?,?)');
+  for (let i = 0; i < texts.length; i++) ids.push(Number(info.run(pid, texts[i], times[i], 'queued', now).lastInsertRowid));
   log('info', `В проект «${proj.name}» добавлено постов: ${texts.length}`, null, pid);
   setTimeout(tick, 300);
-  return { ok: true, count: texts.length };
+  return { ok: true, count: texts.length, ids };
 }
 
 function clearPosts(pid, scope) {
@@ -741,6 +750,11 @@ function loadPost(id, pid) {
 
 const routes = {
   state: (_b, proj) => state(proj.id),
+
+  texts: (_b, proj) => {
+    const rows = db.prepare("SELECT text FROM posts WHERE project_id=? AND status NOT IN ('published','publishing') ORDER BY scheduled_at, id").all(proj.id);
+    return { texts: rows.map((r) => r.text) };
+  },
 
   addPosts: (b, proj) => addPosts(proj.id, b),
 
@@ -898,6 +912,7 @@ async function handleLogin(req, res) {
 
 function match(method, pathname) {
   if (method === 'GET' && pathname === '/api/state') return ['state'];
+  if (method === 'GET' && pathname === '/api/posts/texts') return ['texts'];
   if (method === 'POST' && pathname === '/api/posts') return ['addPosts'];
   if (method === 'POST' && pathname === '/api/posts/clear') return ['clear'];
   if (method === 'POST' && pathname === '/api/posts/requeue') return ['requeue'];
