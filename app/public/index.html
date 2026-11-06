@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Threads Poster</title>
+<style>
+:root{
+  --bg:#f6f5f2; --panel:#ffffff; --ink:#111; --muted:#6b6b6b; --line:#e6e3dc; --soft:#f0eee8;
+  --accent:#111; --ok:#1f8a4c; --okbg:#e5f4ea; --warn:#a86400; --warnbg:#fbf0dc; --err:#c0352b; --errbg:#fbe6e3;
+  --info:#2d5bd7; --infobg:#e7edfc; --test:#7a4fd1; --testbg:#efe9fb;
+  --r:14px; --shadow:0 1px 2px rgba(0,0,0,.04),0 4px 18px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0e0e0f; --panel:#18181a; --ink:#f2f2f2; --muted:#9a9a9f; --line:#2a2a2e; --soft:#212124; --accent:#f2f2f2;
+  --okbg:#14301f; --ok:#5fd08f; --warnbg:#33270f; --warn:#f0b65a; --errbg:#3a1714; --err:#ff8a80; --infobg:#17223f; --info:#8fb0ff; --testbg:#261d3a; --test:#b79cff;
+}}
+*{box-sizing:border-box}
+html,body{overflow-x:hidden;margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:8px 14px}
+button:hover{border-color:var(--muted)}
+button.primary{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
+button.ghost{border-color:transparent;background:transparent;padding:6px 8px;color:var(--muted)}
+button.ghost:hover{color:var(--ink);background:var(--soft)}
+button:disabled{opacity:.5;cursor:default}
+button.slim{padding:7px 12px;font-size:13px}
+input,textarea,select{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 11px;width:100%}
+textarea{resize:vertical}
+input:focus,textarea:focus,select:focus{outline:2px solid color-mix(in srgb,var(--accent) 25%,transparent);border-color:var(--muted)}
+a{color:inherit}
+[hidden]{display:none !important}
+.dlbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--ink);color:var(--bg);border-radius:14px;padding:12px 14px;margin-bottom:14px}
+.dlbar span{font-size:14px}
+.dlbar button{background:var(--bg);color:var(--ink);border:none;font-weight:700;padding:9px 16px}
+header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;letter-spacing:-.01em}
+.logo svg{width:28px;height:28px;flex:none}
+.grow{flex:1}
+.chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.dot.on{background:var(--ok);box-shadow:0 0 0 3px var(--okbg)}
+.mode{font-weight:700;letter-spacing:.02em;font-size:12px;text-transform:uppercase;cursor:pointer}
+.mode.test{background:var(--testbg);color:var(--test);border-color:transparent}
+.mode.live{background:var(--okbg);color:var(--ok);border-color:transparent}
+.clock{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px}
+.projects{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+#projList{display:contents}
+.proj{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:7px 12px;font-size:13px;text-align:left;max-width:100%}
+.proj.on{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.proj.pause{opacity:.7}
+.proj .sw{width:9px;height:9px;border-radius:50%;flex:none}
+.proj .nm{display:block;font-weight:650}
+.proj .meta{display:block;color:var(--muted);font-size:11.5px;font-weight:500}
+.banner{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--info);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;font-size:13.5px;box-shadow:var(--shadow)}
+.banner.pause{border-left-color:var(--warn);background:var(--warnbg)}
+.banner.live{border-left-color:var(--ok)}
+.banner b{font-weight:700}
+.tabs{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
+.tabs button.on{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
+.hero{display:grid;grid-template-columns:minmax(0,1.6fr) repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.stat{min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow)}
+.stat .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.stat .v{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin-top:2px}
+.stat .s{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grid{display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:16px;align-items:start}
+.panel{min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.panel>h2{font-size:15px;margin:0;padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.panel>h2 .grow{flex:1}
+.pbody{padding:14px 16px}
+.hint{font-size:12.5px;color:var(--muted)}
+.row{display:flex;gap:8px;align-items:center}
+.seg{display:flex;background:var(--soft);border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:transparent;padding:7px 6px;font-size:13px;border-radius:8px;color:var(--muted)}
+.seg button.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08);font-weight:600}
+.detect{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.pill{font-size:12px;padding:3px 8px;border-radius:999px;background:var(--soft);color:var(--muted)}
+.pill.bad{background:var(--errbg);color:var(--err)}
+.preview{max-height:220px;overflow:auto;border:1px dashed var(--line);border-radius:10px;padding:6px;margin-top:8px}
+.preview div{font-size:12.5px;padding:6px 8px;border-bottom:1px solid var(--soft);display:flex;gap:8px}
+.preview div:last-child{border:0}
+.preview b{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted);font-weight:600}
+.preview span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.day{padding:4px 16px 10px}
+.dayh{position:sticky;top:0;background:var(--panel);font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:12px 0 8px;font-weight:600;z-index:1;display:flex;gap:8px}
+.post{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:12px;padding:12px 0;border-top:1px solid var(--soft);align-items:start}
+.post:first-of-type{border-top:0}
+.time{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.time small{display:block;font-size:11px;font-weight:500;color:var(--muted);letter-spacing:0}
+.txt{max-width:620px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14.5px;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+.txt.open{-webkit-line-clamp:unset}
+.meta{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.badge{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px}
+.b-queued{background:var(--infobg);color:var(--info)}
+.b-publishing{background:var(--warnbg);color:var(--warn)}
+.b-published{background:var(--okbg);color:var(--ok)}
+.b-test{background:var(--testbg);color:var(--test)}
+.b-failed{background:var(--errbg);color:var(--err)}
+.b-missed{background:var(--warnbg);color:var(--warn)}
+.post.publishing{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.55}}
+.post.next .time{color:var(--info)}
+.acts{display:flex;gap:2px;flex-wrap:wrap;justify-content:flex-end}
+.err{color:var(--err);font-size:12.5px;margin-top:4px}
+.empty{padding:40px 16px;text-align:center;color:var(--muted)}
+.log{max-height:340px;overflow:auto;font-size:12.5px;font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.log div{display:flex;gap:10px;padding:6px 16px;border-top:1px solid var(--soft)}
+.log time{color:var(--muted);white-space:nowrap}
+.l-ok{color:var(--ok)} .l-warn{color:var(--warn)} .l-error{color:var(--err)}
+.log div.fresh{animation:flash 1.6s ease-out}
+@keyframes flash{from{background:var(--infobg)}}
+dialog{border:1px solid var(--line);border-radius:18px;padding:0;background:var(--panel);color:var(--ink);width:min(680px,94vw);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+.dh{display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line);gap:8px}
+.dh h3{margin:0;font-size:17px;flex:1}
+.db{padding:16px 20px;max-height:72vh;overflow:auto}
+.df{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.sec{margin-bottom:20px}
+.sec h4{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+label.f{display:block;font-size:13px;margin:10px 0 4px;color:var(--muted)}
+.switch{display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer}
+.switch input{width:auto}
+ol.steps, .guide ol{padding-left:20px;margin:6px 0;font-size:13.5px}
+ol.steps li, .guide li{margin:5px 0}
+details summary{cursor:pointer;font-weight:600;font-size:13.5px;margin:6px 0}
+code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12.5px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:9;max-width:min(520px,92vw);text-align:center}
+.toast.show{opacity:1}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.search{width:148px;padding:6px 10px;font-size:13px}
+.qactions{display:grid;gap:8px}
+.qactions button{text-align:left}
+.colors{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.colors button{width:32px;height:32px;border-radius:50%;padding:0;border:2px solid transparent}
+.colors button.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--ink)}
+.guide{display:grid;gap:12px}
+.guide .pbody p{margin:8px 0}
+.guide h3{margin:0 0 6px;font-size:16px}
+@media (max-width:960px){.grid{grid-template-columns:minmax(0,1fr)}.hero{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){
+  .wrap{padding:14px 12px 40px}
+  .hero{grid-template-columns:minmax(0,1fr)}
+  .two{grid-template-columns:1fr}
+  .post{grid-template-columns:52px minmax(0,1fr)}
+  .acts{grid-column:2;justify-content:flex-start}
+  .search{width:100%}
+  .clock{display:none}
+}
+@media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="dlbar" id="dlBar">
+    <span>Установщик для Windows. Скачай архив, распакуй и запусти Install.bat — старые посты сохранятся.</span>
+    <a href="https://github.com/zhasiktopor-arch/threads-poster/archive/refs/heads/main.zip"><button type="button">Скачать ZIP</button></a>
+  </div>
+  <header>
+    <div class="logo">
+      <svg viewBox="0 0 192 192" fill="currentColor" aria-hidden="true"><path d="M141.5 88.99a66 66 0 0 0-2.5-1.13c-1.47-27.08-16.27-42.59-41.12-42.75h-.34c-14.87 0-27.23 6.35-34.85 17.9l13.67 9.38c5.68-8.63 14.6-10.46 21.19-10.46h.23c8.18.05 14.36 2.43 18.36 7.07 2.91 3.38 4.86 8.05 5.83 13.94a106 106 0 0 0-23.53-1.13c-23.67 1.36-38.89 15.17-37.87 34.36.52 9.73 5.37 18.1 13.65 23.57 7 4.62 16.02 6.88 25.4 6.37 12.39-.68 22.11-5.41 28.89-14.05 5.15-6.56 8.41-15.07 9.85-25.79 5.9 3.56 10.28 8.25 12.7 13.89 4.11 9.58 4.35 25.33-8.49 38.17-11.25 11.24-24.78 16.1-45.22 16.25-22.68-.17-39.83-7.44-50.98-21.61C35.96 139.71 30.6 120.31 30.4 96c.2-24.31 5.56-43.71 15.94-57.67 11.15-14.17 28.3-21.44 50.98-21.61 22.85.17 40.3 7.48 51.88 21.73 5.68 6.99 9.96 15.78 12.78 26.03l16.02-4.27c-3.41-12.6-8.78-23.46-16.08-32.44C147.11 9.6 125.2.2 97.07 0h-.11C68.9.2 47.27 9.64 32.68 28.07 19.69 44.49 13 67.32 12.78 95.93v.14c.22 28.61 6.91 51.44 19.9 67.86 14.59 18.43 36.22 27.87 64.28 28.07h.11c24.95-.17 42.53-6.7 57.02-21.17 18.95-18.93 18.38-42.67 12.13-57.25-4.48-10.45-13.02-18.94-24.72-24.59Zm-43.08 40.5c-10.44.59-21.28-4.1-21.82-14.14-.4-7.44 5.3-15.75 22.46-16.74 1.97-.11 3.9-.17 5.79-.17 6.23 0 12.07.61 17.37 1.77-1.98 24.7-13.58 28.71-23.8 29.28Z"/></svg>
+      Threads Poster
+    </div>
+    <span class="chip" id="acct"><span class="dot"></span><span>не подключён</span></span>
+    <span class="chip mode test" id="mode" title="Переключить режим этого проекта">Тестовый режим</span>
+    <button class="slim" id="pauseBtn" type="button" title="Остановить публикацию только этого проекта">Пауза</button>
+    <div class="grow"></div>
+    <span class="clock" id="clock"></span>
+    <button id="openSettings" type="button">Настройки</button>
+    <a href="/logout" id="logout" class="hint" style="display:none">Выйти</a>
+  </header>
+
+  <div class="projects" id="projBar">
+    <div id="projList"></div>
+    <button type="button" class="slim" id="addProject">+ Проект</button>
+    <button type="button" class="slim" id="editProject">Изменить</button>
+  </div>
+  <div class="banner" id="banner">Загрузка…</div>
+  <div class="tabs" id="tabs">
+    <button type="button" data-tab="work" class="on">Работа</button>
+    <button type="button" data-tab="guide">Как работает</button>
+  </div>
+
+  <div id="work">
+    <section class="hero">
+      <div class="stat"><div class="k">Следующий в этом проекте</div><div class="v" id="nextIn">—</div><div class="s" id="nextTxt">Очередь пуста</div></div>
+      <div class="stat"><div class="k">В очереди</div><div class="v" id="cQueued">0</div><div class="s" id="cQueuedS">&nbsp;</div></div>
+      <div class="stat"><div class="k">Сегодня вышло</div><div class="v" id="cToday">0</div><div class="s" id="cTodayS">&nbsp;</div></div>
+      <div class="stat"><div class="k">Проблемы</div><div class="v" id="cBad">0</div><div class="s" id="cBadS">ошибки и пропуски</div></div>
+    </section>
+
+    <div class="grid">
+      <div style="display:grid;gap:16px">
+        <section class="panel">
+          <h2>Новые посты</h2>
+          <div class="pbody">
+            <textarea id="compose" rows="9" placeholder="Вставьте один или несколько постов.&#10;&#10;Между постами — строка из трёх дефисов:&#10;---&#10;Следующий пост…&#10;&#10;Они попадут только в проект, который выбран сверху."></textarea>
+            <div class="detect" id="detect"></div>
+            <div class="seg" id="modeSeg">
+              <button type="button" data-m="slots" class="on">По лучшему времени</button>
+              <button type="button" data-m="at">Своё время</button>
+              <button type="button" data-m="now">Сейчас</button>
+            </div>
+            <div id="atBox" style="display:none;margin-top:10px" class="two">
+              <div><label class="f">Первый пост</label><input type="datetime-local" id="atTime"></div>
+              <div><label class="f">Шаг между постами, мин</label><input type="number" id="atStep" value="120" min="1"></div>
+            </div>
+            <div class="preview" id="preview" style="display:none"></div>
+            <div class="row" style="margin-top:12px">
+              <span class="hint grow" id="addHint">Лимит Threads — 500 символов на пост</span>
+              <button class="primary" id="addBtn" type="button" disabled>Добавить</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Журнал <span class="grow"></span><span class="hint" id="live">● в эфире</span></h2>
+          <div class="log" id="log"></div>
+        </section>
+      </div>
+
+      <section class="panel">
+        <h2>Расписание <span class="grow"></span>
+          <input id="q" class="search" placeholder="Поиск" aria-label="Поиск по тексту постов">
+          <button type="button" class="slim" id="openQueue">Очередь</button>
+          <div class="seg" id="filterSeg" style="font-weight:400">
+            <button type="button" data-f="upcoming" class="on">Впереди</button>
+            <button type="button" data-f="done">Вышло</button>
+            <button type="button" data-f="all">Все</button>
+          </div>
+        </h2>
+        <div id="timeline"></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="guide" class="guide" hidden>
+    <section class="panel"><div class="pbody">
+      <h3>Как запустить</h3>
+      <p>То, что вы видите здесь, — пример. На компьютере программа ставится один раз, дальше открывается значком.</p>
+      <ol>
+        <li>Скачай архив: <a href="https://github.com/zhasiktopor-arch/threads-poster/archive/refs/heads/main.zip">Threads Poster для Windows</a>. Кнопка сверху ведёт туда же.</li>
+        <li>Правой кнопкой по архиву → <b>Извлечь всё…</b>. Из самого архива не запускать — сначала распаковать.</li>
+        <li>В распакованной папке дважды кликните <b>Install.bat</b>. Рядом лежит файл «КАК ЗАПУСТИТЬ.txt» с этими же шагами.</li>
+        <li>Если Windows пишет «Система Windows защитила ваш компьютер» — <b>Подробнее</b> → <b>Выполнить в любом случае</b>. Это один раз.</li>
+        <li>Подождите минуту. Откроется браузер. На рабочем столе и в меню «Пуск» появится <b>Threads Poster</b> — потом открывать его.</li>
+        <li>Старые посты и токен не сотрутся. Всё, что было раньше, станет проектом <b>«Основной»</b>.</li>
+      </ol>
+      <p>Дальше программа сама включается вместе с компьютером и работает без окна. Чтобы посмотреть очередь — значок на рабочем столе. Посты выходят, только пока компьютер включён и не спит.</p>
+    </div></section>
+    <section class="panel"><div class="pbody">
+      <h3>Почему посты уходили не в тот аккаунт</h3>
+      <p>Раньше была одна очередь и один токен. Подключаете другой аккаунт — а в очереди ещё лежат чужие тексты. Программа честно публикует то, что в очереди, уже в новый аккаунт.</p>
+      <p>Теперь сверху выбирается <b>проект</b>. У каждого проекта свои посты, своё время, свой токен и свой журнал. Планировщик проходит все проекты сам: клиника публикуется в клинику, даже если на экране открыты матрасы.</p>
+    </div></section>
+    <section class="panel"><div class="pbody">
+      <h3>Как завести второй аккаунт</h3>
+      <ol>
+        <li>Нажмите <b>+ Проект</b>. Имя — чтобы не перепутать: «Клиника», «Матрасы», имя клиента. В заметку можно вписать ник.</li>
+        <li>Откройте его. Шапка должна показать это имя и «аккаунт не подключён». Очередь пустая — так и надо.</li>
+        <li><b>Настройки</b> → вставьте токен <b>этого</b> аккаунта → Подключить. Проверьте, что загорелся правильный @ник.</li>
+        <li>Вставьте посты. Они не появятся в других проектах.</li>
+        <li>Боевой режим включается отдельно у каждого. Один может быть боевым, второй — в тесте.</li>
+      </ol>
+      <p>Один и тот же Threads нельзя привязать к двум проектам. Если в проекте ещё лежат посты старого аккаунта, новый токен программа не примет — сначала очистите очередь или заведите отдельный проект.</p>
+    </div></section>
+    <section class="panel"><div class="pbody">
+      <h3>Очередь</h3>
+      <ul>
+        <li><b>Очередь</b> в расписании: скачать тексты, скопировать, вернуть ошибки в свободные слоты, очистить ожидающие или всё неопубликованное.</li>
+        <li>Уже вышедшие посты очистка не трогает. Чужой проект не трогает никогда.</li>
+        <li><b>Пауза</b> останавливает только текущий проект. Остальные продолжают выходить.</li>
+        <li>Кнопка ✎ → внизу список проектов. Если перенести пост, он выйдет уже в аккаунт того проекта.</li>
+        <li>⧉ ставит копию в очередь <b>этого</b> проекта, на ближайший свободный слот.</li>
+        <li>Если такой же текст уже есть в другом проекте, программа спросит ещё раз. Так случайно не задвоите.</li>
+      </ul>
+    </div></section>
+    <section class="panel"><div class="pbody">
+      <h3>Где взять токен</h3>
+      <ol class="steps">
+        <li>Откройте <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener">developers.facebook.com/apps</a>, войдите через Facebook.</li>
+        <li><b>Создать приложение</b> → имя любое → сценарий <b>«Доступ к API Threads»</b> → бизнес-портфолио не подключать.</li>
+        <li>Сценарии использования → Настроить → Разрешения: добавьте <code>threads_content_publish</code>.</li>
+        <li>Там же Настройки: во все поля обратного вызова впишите <code>https://localhost/</code> → Сохранить.</li>
+        <li>Роли приложения → Добавить людей → <b>Тестировщик Threads</b> → ник нужного аккаунта.</li>
+        <li>В Threads: Настройки → Аккаунт → Разрешения для сайтов → Приглашения → Принять.</li>
+        <li>Снова Настройки сценария → Генератор маркеров → Сгенерировать напротив этого аккаунта → скопировать.</li>
+        <li>Секрет приложения (необязательно, помогает получить токен на 60 дней): Настройки приложения → Основное → Секрет → Показать.</li>
+      </ol>
+      <p class="hint">Токен живёт 60 дней. Программа продлевает его сама, если компьютер включается хотя бы раз в пару недель. У каждого проекта токен свой.</p>
+    </div></section>
+    <section class="panel"><div class="pbody">
+      <h3>Режим, сон, обновление</h3>
+      <p><b>Тестовый</b> — прогон по расписанию, в Threads тишина, в журнале будет «тест». <b>Боевой</b> — текст уходит только в @ник этого проекта. Перед отправкой программа сверяет, что токен всё ещё тот самый аккаунт. Если нет — ставит проект на паузу и ничего не публикует.</p>
+      <p>Посты выходят, только когда компьютер включён и не спит. Если пост опоздал дольше, чем задано в настройках (обычно 6 часов), он становится «пропущен». Его можно вернуть кнопкой в «Очереди» — он встанет на ближайшее свободное время <b>своего</b> проекта.</p>
+      <p>Посты, токены и проекты лежат в <code>%APPDATA%\ThreadsPoster</code>. Обновление программы их не стирает. Старая единственная очередь после обновления станет проектом «Основной».</p>
+      <p>На Windows системных уведомлений нет. Если вкладка открыта, можно разрешить уведомления браузера в настройках — они придут, когда вкладка свёрнута.</p>
+    </div></section>
+  </div>
+</div>
+
+<dialog id="settings">
+  <div class="dh"><h3 id="settingsTitle">Настройки</h3><button class="ghost" type="button" data-close>✕</button></div>
+  <div class="db">
+    <p class="hint" id="settingsScope" style="margin-top:0">Меняется только этот проект.</p>
+    <div class="sec">
+      <h4>Подключение к Threads</h4>
+      <div id="connState" class="hint" style="margin-bottom:8px"></div>
+      <label class="f">Токен доступа — только этого проекта</label>
+      <input id="token" type="password" placeholder="THAA…" autocomplete="off">
+      <label class="f">Секрет приложения — необязательно, помогает получить токен на 60 дней</label>
+      <input id="appSecret" type="password" placeholder="32 символа" autocomplete="off">
+      <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+        <button class="primary" id="saveToken" type="button">Подключить</button>
+        <button id="disconnect" type="button">Отключить этот проект</button>
+      </div>
+      <details style="margin-top:12px">
+        <summary>Коротко, где взять токен</summary>
+        <ol class="steps">
+          <li><a href="https://developers.facebook.com/apps" target="_blank" rel="noopener">developers.facebook.com/apps</a> → Создать приложение → сценарий «Доступ к API Threads».</li>
+          <li>Разрешение <code>threads_content_publish</code>. В URL обратного вызова — <code>https://localhost/</code>.</li>
+          <li>Роль «Тестировщик Threads» на нужный ник → принять приглашение в Threads.</li>
+          <li>Генератор маркеров → скопировать → вставить сюда. Полная инструкция на вкладке «Как работает».</li>
+        </ol>
+      </details>
+    </div>
+    <div class="sec">
+      <h4>Режим этого проекта</h4>
+      <label class="switch"><input type="checkbox" id="sLive"> <span><b>Боевой режим</b> — посты этого проекта уходят в его аккаунт. Выключено = тестовый прогон.</span></label>
+    </div>
+    <div class="sec">
+      <h4>Лучшее время (по часам компьютера)</h4>
+      <div class="two">
+        <div><label class="f">Будни</label><input id="sWd" placeholder="08:30, 10:00, …"></div>
+        <div><label class="f">Выходные</label><input id="sWe" placeholder="10:00, 11:30, …"></div>
+      </div>
+      <p class="hint">Свои слоты у каждого проекта. По умолчанию утро 8–11, обед и вечер.</p>
+    </div>
+    <div class="sec">
+      <h4>Поведение</h4>
+      <div class="two">
+        <div><label class="f">Минимум минут между постами</label><input type="number" id="sGap" min="1" max="240"></div>
+        <div><label class="f">Не публиковать, если опоздал больше чем на, ч (0 = всегда)</label><input type="number" id="sLate" min="0" max="72"></div>
+      </div>
+      <label class="switch mac-only"><input type="checkbox" id="sAwake"> <span>Не давать Маку засыпать, пока в любом проекте есть посты на ближайшие сутки</span></label>
+      <label class="switch mac-only"><input type="checkbox" id="sNotify"> <span>Уведомления macOS <button class="ghost" id="testNotify" type="button">проверить</button></span></label>
+      <div class="row" style="margin-top:6px;flex-wrap:wrap">
+        <button type="button" id="browserNotify">Уведомления браузера</button>
+        <span class="hint">когда вкладка свёрнута, а пост вышел или упал</span>
+      </div>
+    </div>
+  </div>
+  <div class="df"><button type="button" data-close>Отмена</button><button class="primary" id="saveSettings" type="button">Сохранить</button></div>
+</dialog>
+
+<dialog id="editDlg">
+  <div class="dh"><h3 id="editTitle">Пост</h3><button class="ghost" type="button" data-close>✕</button></div>
+  <div class="db">
+    <textarea id="eText" rows="8"></textarea>
+    <div class="hint" id="eCount" style="text-align:right;margin-top:4px"></div>
+    <label class="f">Время публикации</label>
+    <input type="datetime-local" id="eTime">
+    <label class="f">Проект — если сменить, пост уйдёт в аккаунт того проекта</label>
+    <select id="eProject"></select>
+  </div>
+  <div class="df">
+    <button type="button" id="eCopy" class="ghost" style="margin-right:auto">Копировать текст</button>
+    <button type="button" data-close>Отмена</button>
+    <button class="primary" id="eSave" type="button">Сохранить</button>
+  </div>
+</dialog>
+
+<dialog id="projDlg">
+  <div class="dh"><h3 id="projTitle">Новый проект</h3><button class="ghost" type="button" data-close>✕</button></div>
+  <div class="db">
+    <label class="f">Название</label>
+    <input id="pName" maxlength="40" placeholder="Клиника, матрасы, личный…">
+    <label class="f">Заметка — кому этот аккаунт, чтобы не перепутать</label>
+    <input id="pNote" maxlength="140" placeholder="Threads @clinic">
+    <label class="f">Цвет</label>
+    <div class="colors" id="pColors"></div>
+    <p class="hint">Своя очередь, своё расписание, свой токен. В другие проекты это не попадает.</p>
+    <div id="projDanger" style="display:none;margin-top:8px">
+      <button type="button" id="delProject" style="border-color:var(--err);color:var(--err)">Удалить проект и все его посты</button>
+    </div>
+  </div>
+  <div class="df"><button type="button" data-close>Отмена</button><button class="primary" id="saveProject" type="button">Сохранить</button></div>
+</dialog>
+
+<dialog id="queueDlg">
+  <div class="dh"><h3>Очередь проекта</h3><button class="ghost" type="button" data-close>✕</button></div>
+  <div class="db">
+    <p class="hint" id="queueHint" style="margin-top:0"></p>
+    <div class="qactions">
+      <button type="button" id="qCopy">Скопировать неопубликованные тексты</button>
+      <button type="button" id="qDownload">Скачать очередь .txt</button>
+      <button type="button" id="qRequeue">Вернуть ошибки и пропуски в свободные слоты</button>
+      <button type="button" id="qClearQueued">Убрать ожидающие</button>
+      <button type="button" id="qClearBad">Убрать ошибки и пропуски</button>
+      <button type="button" id="qClearAll" style="border-color:var(--err);color:var(--err)">Очистить всё неопубликованное</button>
+    </div>
+    <p class="hint" style="margin-bottom:0">Опубликованное не удаляется. Другие проекты не затрагиваются. Перед очисткой можно скачать txt — отмены нет.</p>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+let S = null, skew = 0, mode = 'slots', filter = 'upcoming', lastLogId = 0, editId = null, query = '';
+let projectId = Number(localStorage.getItem('tp_project') || 0) || 0;
+let projEditId = null, projColor = '#111111';
+const MAXLEN = 500;
+const clen = (s) => [...s].length;
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c]));
+const pad = (n) => String(n).padStart(2, '0');
+const hm = (ts) => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const toLocalInput = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const now = () => Date.now() + skew;
+function dayLabel(ts) {
+  const d = new Date(ts), t = new Date(now()); t.setHours(0, 0, 0, 0);
+  const diff = Math.round((new Date(d).setHours(0, 0, 0, 0) - t) / 864e5);
+  const base = d.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+  return diff === 0 ? `Сегодня · ${base}` : diff === 1 ? `Завтра · ${base}` : diff === -1 ? `Вчера · ${base}` : base;
+}
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3200); }
+
+async function api(method, url, body) {
+  const headers = { 'Content-Type': 'application/json', 'X-App': '1' };
+  if (projectId) headers['X-Project'] = String(projectId);
+  const r = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) { location.href = '/login'; throw new Error('Нужно войти'); }
+  if (!r.ok) { const e = new Error(j.error || `Ошибка ${r.status}`); e.dupes = j.dupes; throw e; }
+  return j;
+}
+async function load() {
+  const q = projectId ? `?project=${projectId}` : '';
+  S = await api('GET', '/api/state' + q);
+  projectId = S.project.id;
+  localStorage.setItem('tp_project', String(projectId));
+  skew = S.now - Date.now();
+  render();
+}
+
+function splitPosts(raw) { return raw.split(/^\s*-{3,}\s*$/m).map((s) => s.trim()).filter(Boolean); }
+function upcomingSlots(n) {
+  if (!S) return [];
+  const { slots_weekday: wd, slots_weekend: we } = S.settings;
+  const taken = S.posts.filter((p) => ['queued', 'publishing', 'published'].includes(p.status)).map((p) => p.scheduled_at);
+  const out = []; const d0 = new Date(now()); d0.setHours(0, 0, 0, 0);
+  for (let d = 0; d < 400 && out.length < n; d++) {
+    const date = new Date(d0); date.setDate(d0.getDate() + d);
+    for (const s of (date.getDay() % 6 === 0 ? we : wd)) {
+      const [h, m] = s.split(':').map(Number); const t = new Date(date); t.setHours(h, m, 0, 0); const ts = +t;
+      if (ts < now() + 60e3 || [...taken, ...out].some((x) => Math.abs(x - ts) < 20 * 60e3)) continue;
+      out.push(ts); if (out.length >= n) break;
+    }
+    if (!wd.length && !we.length) break;
+  }
+  return out;
+}
+function updateCompose() {
+  const posts = splitPosts($('#compose').value);
+  const over = posts.map((p, i) => [i, clen(p)]).filter(([, l]) => l > MAXLEN);
+  $('#detect').innerHTML = posts.length
+    ? `<span class="pill">Постов: ${posts.length}</span>` + over.map(([i, l]) => `<span class="pill bad">№${i + 1}: ${l}/500</span>`).join('')
+      + (posts.length === 1 ? `<span class="pill">${clen(posts[0])}/500</span>` : '')
+    : '';
+  $('#addBtn').disabled = !posts.length || over.length > 0;
+  $('#addBtn').textContent = posts.length > 1 ? `Добавить ${posts.length}` : 'Добавить';
+  $('#addHint').textContent = S ? `Только в «${S.project.name}» · 500 символов` : 'Лимит Threads — 500 символов';
+  $('#atBox').style.display = mode === 'at' ? 'grid' : 'none';
+  let times = [];
+  if (mode === 'slots') times = upcomingSlots(posts.length);
+  else if (mode === 'at') { const st = +new Date($('#atTime').value); const step = (+$('#atStep').value || 60) * 60e3; if (st) times = posts.map((_, i) => st + i * step); }
+  else times = posts.map((_, i) => now() + i * (S?.settings.min_gap_min || 3) * 60e3);
+  const pv = $('#preview');
+  if (posts.length && times.length) {
+    pv.style.display = 'block';
+    pv.innerHTML = posts.map((p, i) => times[i] ? `<div><b>${new Date(times[i]).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} ${hm(times[i])}</b><span>${esc(p.split('\n')[0])}</span></div>` : '').join('');
+  } else pv.style.display = 'none';
+}
+$('#compose').addEventListener('input', updateCompose);
+$('#atTime').addEventListener('input', updateCompose);
+$('#atStep').addEventListener('input', updateCompose);
+$$('#modeSeg button').forEach((b) => b.onclick = () => {
+  mode = b.dataset.m; $$('#modeSeg button').forEach((x) => x.classList.toggle('on', x === b));
+  if (mode === 'at' && !$('#atTime').value) $('#atTime').value = toLocalInput(now() + 30 * 60e3);
+  updateCompose();
+});
+$('#addBtn').onclick = async () => {
+  const texts = splitPosts($('#compose').value);
+  const send = (force) => api('POST', '/api/posts', {
+    texts, mode, force,
+    at: mode === 'at' ? +new Date($('#atTime').value) : undefined,
+    stepMin: +$('#atStep').value,
+  });
+  try {
+    $('#addBtn').disabled = true;
+    let r;
+    try { r = await send(false); }
+    catch (e) {
+      if (!e.dupes) throw e;
+      if (!confirm(e.message)) { updateCompose(); return; }
+      r = await send(true);
+    }
+    $('#compose').value = ''; updateCompose();
+    toast(`В «${S.project.name}» добавлено: ${r.count}`);
+    load();
+  } catch (e) { toast(e.message); updateCompose(); }
+};
+
+function renderBanner() {
+  const p = S.project, st = S.settings;
+  const acc = st.connected ? `@${st.username}` : 'аккаунт не подключён';
+  let cls = 'banner', text;
+  if (p.paused) {
+    cls += ' pause';
+    text = 'Пауза. Очередь на месте, но из этого проекта ничего не публикуется. Остальные проекты работают сами.';
+  } else if (!st.dry_run && st.connected) {
+    cls += ' live';
+    text = `Боевой режим. Эти посты уходят только в ${acc}. Чужая очередь сюда не попадает.`;
+  } else if (!st.dry_run) {
+    cls += ' pause';
+    text = 'Боевой режим включён, но аккаунт не подключён — посты ждут и никуда не денутся.';
+  } else {
+    text = 'Тестовый режим: в Threads ничего не отправляется. Подключите аккаунт в настройках и включите боевой, когда тексты точно этого проекта.';
+  }
+  $('#banner').className = cls;
+  $('#banner').innerHTML = `<b>${esc(p.name)}</b> · ${esc(acc)}<div>${esc(text)}</div>${p.note ? `<div class="hint">${esc(p.note)}</div>` : ''}`;
+}
+function renderProjects() {
+  $('#projList').innerHTML = S.projects.map((p) => {
+    const acc = p.connected ? '@' + p.username : 'без аккаунта';
+    const modeLabel = p.paused ? 'пауза' : (p.dry_run ? 'тест' : 'боевой');
+    return `<button type="button" class="proj ${p.id === S.project.id ? 'on' : ''} ${p.paused ? 'pause' : ''}" data-pid="${p.id}">
+      <i class="sw" style="background:${esc(p.color)}"></i>
+      <span><span class="nm">${esc(p.name)}</span><span class="meta">${esc(acc)} · ${p.queued} в очереди · ${modeLabel}</span></span>
+    </button>`;
+  }).join('');
+  $('#pauseBtn').textContent = S.project.paused ? 'Снять паузу' : 'Пауза';
+}
+
+function render() {
+  const st = S.settings;
+  $('#acct').innerHTML = st.connected
+    ? `<span class="dot on"></span><span>@${esc(st.username)}</span>`
+    : `<span class="dot"></span><span>не подключён</span>`;
+  const m = $('#mode');
+  m.className = `chip mode ${st.dry_run ? 'test' : 'live'}`;
+  m.textContent = st.dry_run ? 'Тестовый режим' : 'Боевой режим';
+  $('#logout').style.display = st.auth ? '' : 'none';
+  renderProjects();
+  renderBanner();
+
+  const posts = S.posts;
+  const queued = posts.filter((p) => p.status === 'queued');
+  const t0 = new Date(now()); t0.setHours(0, 0, 0, 0);
+  const today = posts.filter((p) => p.status === 'published' && p.published_at >= +t0);
+  const bad = posts.filter((p) => p.status === 'failed' || p.status === 'missed');
+  $('#cQueued').textContent = queued.length;
+  const last = queued.at(-1);
+  $('#cQueuedS').textContent = last ? `до ${new Date(last.scheduled_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}` : 'пусто';
+  $('#cToday').textContent = today.length;
+  $('#cTodayS').textContent = today.length ? `последний в ${hm(today.at(-1).published_at)}` : ' ';
+  $('#cBad').textContent = bad.length;
+  $('#cBad').style.color = bad.length ? 'var(--err)' : '';
+  const otherBad = S.projects.filter((p) => p.id !== S.project.id).reduce((a, p) => a + p.problems, 0);
+  $('#cBadS').textContent = otherBad ? `в других проектах ещё ${otherBad}` : 'ошибки и пропуски';
+
+  renderTimeline();
+  renderLog();
+  tickClock();
+  updateCompose();
+}
+
+function badge(p) {
+  if (p.status === 'published') return p.simulated ? '<span class="badge b-test">тест ✓</span>' : '<span class="badge b-published">опубликован</span>';
+  return { queued: '<span class="badge b-queued">в очереди</span>', publishing: '<span class="badge b-publishing">публикуется…</span>', failed: '<span class="badge b-failed">ошибка</span>', missed: '<span class="badge b-missed">пропущен</span>' }[p.status] || '';
+}
+function renderTimeline() {
+  let list = S.posts.slice();
+  if (filter === 'upcoming') list = list.filter((p) => p.status !== 'published');
+  if (filter === 'done') list = list.filter((p) => p.status === 'published').reverse();
+  if (query) list = list.filter((p) => p.text.toLowerCase().includes(query));
+  const next = S.posts.find((p) => p.status === 'queued');
+  if (!list.length) {
+    const msg = query ? 'Ничего не найдено' : filter === 'done' ? 'Пока ничего не вышло' : 'Очередь этого проекта пуста';
+    $('#timeline').innerHTML = `<div class="empty">${msg}</div>`;
+    return;
+  }
+  const groups = new Map();
+  for (const p of list) {
+    const ts = p.status === 'published' ? p.published_at : p.scheduled_at;
+    const k = new Date(ts).toDateString();
+    if (!groups.has(k)) groups.set(k, { ts, items: [] });
+    groups.get(k).items.push(p);
+  }
+  $('#timeline').innerHTML = [...groups.values()].map((g) => `
+    <div class="day"><div class="dayh">${esc(dayLabel(g.ts))} <span>· ${g.items.length}</span></div>
+    ${g.items.map((p) => {
+      const ts = p.status === 'published' ? p.published_at : p.scheduled_at;
+      const editable = !['published', 'publishing'].includes(p.status);
+      const late = p.status === 'published' && p.published_at - p.scheduled_at > 5 * 60e3 ? ` · план ${hm(p.scheduled_at)}` : '';
+      return `<div class="post ${p.status} ${next && p.id === next.id ? 'next' : ''}" data-id="${p.id}">
+        <div class="time">${hm(ts)}<small>#${p.id}</small></div>
+        <div>
+          <div class="txt">${esc(p.text)}</div>
+          <div class="meta">${badge(p)}<span>${clen(p.text)} симв.${late}</span>
+            ${p.permalink ? `<a href="${esc(p.permalink)}" target="_blank" rel="noopener">открыть в Threads ↗</a>` : ''}</div>
+          ${p.error && p.status !== 'published' ? `<div class="err">${esc(p.error)}</div>` : ''}
+        </div>
+        <div class="acts">
+          ${editable ? `<button class="ghost" type="button" data-act="now" title="Опубликовать сейчас">▶</button><button class="ghost" type="button" data-act="edit" title="Изменить или перенести в другой проект">✎</button><button class="ghost" type="button" data-act="dup" title="Дублировать в этом проекте">⧉</button>` : ''}
+          ${p.status !== 'publishing' ? `<button class="ghost" type="button" data-act="del" title="Удалить">🗑</button>` : ''}
+        </div>
+      </div>`;
+    }).join('')}</div>`).join('');
+}
+$('#timeline').addEventListener('click', async (e) => {
+  const post = e.target.closest('.post'); if (!post) return;
+  const id = +post.dataset.id;
+  if (e.target.classList.contains('txt')) return e.target.classList.toggle('open');
+  const act = e.target.closest('[data-act]')?.dataset.act; if (!act) return;
+  const p = S.posts.find((x) => x.id === id);
+  try {
+    if (act === 'now') { await api('POST', `/api/posts/${id}/now`); toast('Публикую в этом проекте…'); }
+    if (act === 'dup') { await api('POST', `/api/posts/${id}/duplicate`); toast('Копия в очереди этого проекта'); }
+    if (act === 'del') {
+      if (post.dataset.confirm !== '1') { post.dataset.confirm = '1'; e.target.closest('button').textContent = 'удалить?'; setTimeout(() => { delete post.dataset.confirm; renderTimeline(); }, 3000); return; }
+      await api('DELETE', `/api/posts/${id}`);
+    }
+    if (act === 'edit') {
+      editId = id; $('#editTitle').textContent = `Пост #${id}`;
+      $('#eText').value = p.text; $('#eTime').value = toLocalInput(p.status === 'queued' ? p.scheduled_at : now() + 10 * 60e3);
+      $('#eCount').textContent = `${clen(p.text)}/500`;
+      $('#eProject').innerHTML = S.projects.map((pr) => `<option value="${pr.id}"${pr.id === S.project.id ? ' selected' : ''}>${esc(pr.name)}${pr.connected ? ' · @' + esc(pr.username) : ''}</option>`).join('');
+      $('#editDlg').showModal(); return;
+    }
+    load();
+  } catch (err) { toast(err.message); }
+});
+$$('#filterSeg button').forEach((b) => b.onclick = () => { filter = b.dataset.f; $$('#filterSeg button').forEach((x) => x.classList.toggle('on', x === b)); renderTimeline(); });
+$('#q').addEventListener('input', () => { query = $('#q').value.trim().toLowerCase(); renderTimeline(); });
+$('#eText').addEventListener('input', () => { const l = clen($('#eText').value); $('#eCount').textContent = `${l}/500`; $('#eCount').style.color = l > 500 ? 'var(--err)' : ''; });
+$('#eCopy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('#eText').value); toast('Текст скопирован'); }
+  catch { toast('Не удалось скопировать'); }
+};
+$('#eSave').onclick = async () => {
+  try {
+    await api('PATCH', `/api/posts/${editId}`, { text: $('#eText').value, scheduled_at: +new Date($('#eTime').value), project_id: +$('#eProject').value });
+    $('#editDlg').close(); toast('Сохранено'); load();
+  } catch (e) { toast(e.message); }
+};
+
+function renderLog() {
+  const maxId = S.log[0]?.id || 0;
+  if (lastLogId && typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
+    for (const l of S.log) {
+      if (l.id > lastLogId && (l.level === 'ok' || l.level === 'error')) {
+        try { new Notification('Threads Poster', { body: l.msg }); } catch {}
+      }
+    }
+  }
+  $('#log').innerHTML = S.log.map((l) => `<div class="${lastLogId && l.id > lastLogId ? 'fresh' : ''}"><time>${new Date(l.ts).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} ${hm(l.ts)}</time><span class="l-${esc(l.level)}">${esc(l.msg)}</span></div>`).join('') || '<div><span class="hint">Пока пусто</span></div>';
+  lastLogId = maxId;
+}
+function tickClock() {
+  const n = new Date(now());
+  $('#clock').textContent = n.toLocaleString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  if (!S) return;
+  const next = S.posts.find((p) => p.status === 'queued' || p.status === 'publishing');
+  if (!next) { $('#nextIn').textContent = '—'; $('#nextTxt').textContent = 'В этом проекте пусто'; return; }
+  if (next.status === 'publishing') { $('#nextIn').textContent = 'сейчас'; $('#nextTxt').textContent = next.text.split('\n')[0]; return; }
+  const d = Math.max(0, next.scheduled_at - n);
+  const h = Math.floor(d / 36e5), m = Math.floor(d % 36e5 / 6e4), s = Math.floor(d % 6e4 / 1e3);
+  $('#nextIn').textContent = d < 15e3 ? 'вот-вот…' : h > 47 ? `${Math.floor(h / 24)} дн.` : `${h ? h + ':' : ''}${pad(m)}:${pad(s)}`;
+  $('#nextTxt').textContent = `${hm(next.scheduled_at)} · ${next.text.split('\n')[0]}`;
+}
+setInterval(tickClock, 1000);
+
+function fillSettings() {
+  const st = S.settings;
+  $('#settingsTitle').textContent = `Настройки · ${S.project.name}`;
+  $('#settingsScope').textContent = `Токен, режим и слоты меняются только у «${S.project.name}». Другие проекты не затрагиваются.`;
+  $('#connState').innerHTML = st.connected
+    ? `Подключён <b>@${esc(st.username)}</b>${st.token_expires_at ? ` · токен до ${new Date(st.token_expires_at).toLocaleDateString('ru-RU')} (продлевается сам)` : ''}`
+    : 'Не подключён. Пока у этого проекта работает только тестовый режим.';
+  $('#token').value = ''; $('#appSecret').value = '';
+  $('#appSecret').placeholder = st.has_app_secret ? 'сохранён ••••' : '32 символа';
+  $('#sLive').checked = !st.dry_run;
+  $('#sWd').value = st.slots_weekday.join(', ');
+  $('#sWe').value = st.slots_weekend.join(', ');
+  $('#sGap').value = st.min_gap_min; $('#sLate').value = st.max_late_hours;
+  $('#sAwake').checked = st.keep_awake; $('#sNotify').checked = st.notify;
+  $$('.mac-only').forEach((el) => el.style.display = st.is_mac ? '' : 'none');
+}
+$('#openSettings').onclick = () => { fillSettings(); $('#settings').showModal(); };
+$('#mode').onclick = async () => {
+  const goLive = S.settings.dry_run;
+  if (goLive && !S.settings.connected) { fillSettings(); $('#settings').showModal(); toast('Сначала подключите Threads у этого проекта'); return; }
+  await api('POST', '/api/settings', { dry_run: !goLive }); load();
+};
+$('#pauseBtn').onclick = async () => {
+  const next = !S.project.paused;
+  await api('PATCH', `/api/projects/${S.project.id}`, { paused: next });
+  toast(next ? 'Этот проект на паузе' : 'Пауза снята');
+  load();
+};
+$$('[data-close]').forEach((b) => b.onclick = () => b.closest('dialog').close());
+$('#saveToken').onclick = async () => {
+  const token = $('#token').value.trim(); if (!token) return toast('Вставьте токен');
+  $('#saveToken').disabled = true; $('#saveToken').textContent = 'Проверяю…';
+  try { const r = await api('POST', '/api/token', { token, app_secret: $('#appSecret').value.trim() }); toast(`Подключено: @${r.username}`); await load(); fillSettings(); }
+  catch (e) { toast(e.message); }
+  finally { $('#saveToken').disabled = false; $('#saveToken').textContent = 'Подключить'; }
+};
+$('#disconnect').onclick = async () => {
+  if (!confirm(`Отключить Threads только у «${S.project.name}»? Очередь останется, режим станет тестовым.`)) return;
+  await api('POST', '/api/token/disconnect'); await load(); fillSettings();
+};
+$('#testNotify').onclick = () => api('POST', '/api/test-notify');
+$('#browserNotify').onclick = async () => {
+  if (typeof Notification === 'undefined') return toast('Этот браузер не умеет уведомления');
+  const p = await Notification.requestPermission();
+  toast(p === 'granted' ? 'Буду писать, когда вкладка свёрнута' : 'Браузер не разрешил уведомления');
+};
+$('#saveSettings').onclick = async () => {
+  const live = $('#sLive').checked;
+  if (live && !S.settings.connected) return toast('Для боевого режима подключите Threads');
+  try {
+    await api('POST', '/api/settings', {
+      dry_run: !live, slots_weekday: $('#sWd').value, slots_weekend: $('#sWe').value,
+      min_gap_min: +$('#sGap').value, max_late_hours: +$('#sLate').value, keep_awake: $('#sAwake').checked, notify: $('#sNotify').checked,
+    });
+    $('#settings').close(); toast('Сохранено для этого проекта'); load();
+  } catch (e) { toast(e.message); }
+};
+
+function paintColors() {
+  $('#pColors').innerHTML = (S?.colors || []).map((c) => `<button type="button" data-c="${c}" class="${c === projColor ? 'on' : ''}" style="background:${c}" aria-label="цвет"></button>`).join('');
+}
+$('#pColors').onclick = (e) => { const b = e.target.closest('[data-c]'); if (!b) return; projColor = b.dataset.c; paintColors(); };
+function openCreate() {
+  projEditId = null;
+  $('#projTitle').textContent = 'Новый проект';
+  $('#pName').value = ''; $('#pNote').value = '';
+  const cols = S.colors || ['#111111'];
+  projColor = cols[S.projects.length % cols.length];
+  $('#projDanger').style.display = 'none';
+  $('#delProject').dataset.armed = '';
+  $('#delProject').textContent = 'Удалить проект и все его посты';
+  paintColors(); $('#projDlg').showModal();
+}
+function openEditProject() {
+  projEditId = S.project.id;
+  $('#projTitle').textContent = 'Проект';
+  $('#pName').value = S.project.name; $('#pNote').value = S.project.note || '';
+  projColor = S.project.color;
+  $('#projDanger').style.display = S.projects.length > 1 ? '' : 'none';
+  $('#delProject').dataset.armed = '';
+  $('#delProject').textContent = 'Удалить проект и все его посты';
+  paintColors(); $('#projDlg').showModal();
+}
+$('#addProject').onclick = openCreate;
+$('#editProject').onclick = openEditProject;
+$('#projBar').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-pid]');
+  if (!b) return;
+  switchProject(+b.dataset.pid);
+});
+async function switchProject(id) {
+  if (!S || id === S.project.id) return;
+  projectId = id;
+  localStorage.setItem('tp_project', String(id));
+  lastLogId = 0;
+  try { await api('POST', '/api/active', { id }); } catch {}
+  load();
+}
+$('#saveProject').onclick = async () => {
+  const body = { name: $('#pName').value, note: $('#pNote').value, color: projColor };
+  try {
+    if (projEditId) await api('PATCH', `/api/projects/${projEditId}`, body);
+    else {
+      const r = await api('POST', '/api/projects', body);
+      projectId = r.id;
+      localStorage.setItem('tp_project', String(projectId));
+      lastLogId = 0;
+    }
+    $('#projDlg').close(); toast(projEditId ? 'Проект обновлён' : 'Проект создан — очередь пустая'); load();
+  } catch (e) { toast(e.message); }
+};
+$('#delProject').onclick = async () => {
+  if ($('#delProject').dataset.armed !== '1') {
+    $('#delProject').dataset.armed = '1';
+    $('#delProject').textContent = `Точно удалить «${S.project.name}»?`;
+    return;
+  }
+  try {
+    const r = await api('DELETE', `/api/projects/${S.project.id}`);
+    projectId = r.id; localStorage.setItem('tp_project', String(projectId)); lastLogId = 0;
+    $('#projDlg').close(); toast('Проект удалён'); load();
+  } catch (e) { toast(e.message); }
+};
+
+function unpublishedTexts() {
+  return S.posts.filter((p) => p.status !== 'published' && p.status !== 'publishing').map((p) => p.text);
+}
+$('#openQueue').onclick = () => {
+  const posts = S.posts;
+  const queued = posts.filter((p) => p.status === 'queued').length;
+  const bad = posts.filter((p) => p.status === 'failed' || p.status === 'missed').length;
+  $('#queueHint').textContent = `«${S.project.name}». Ожидают: ${queued}. Ошибки и пропуски: ${bad}.`;
+  for (const id of ['qClearQueued', 'qClearBad', 'qClearAll', 'qRequeue']) {
+    const b = $('#' + id); b.dataset.armed = '';
+  }
+  $('#qClearQueued').textContent = `Убрать ожидающие (${queued})`;
+  $('#qClearBad').textContent = `Убрать ошибки и пропуски (${bad})`;
+  $('#qClearAll').textContent = `Очистить всё неопубликованное (${queued + bad})`;
+  $('#qRequeue').textContent = `Вернуть ошибки и пропуски в свободные слоты (${bad})`;
+  $('#queueDlg').showModal();
+};
+async function arm(btn, run) {
+  if (btn.dataset.armed !== '1') {
+    btn.dataset.armed = '1';
+    btn.dataset.prev = btn.textContent;
+    btn.textContent = 'Точно? Нажмите ещё раз';
+    setTimeout(() => { if (btn.dataset.armed === '1') { btn.dataset.armed = ''; btn.textContent = btn.dataset.prev || btn.textContent; } }, 3500);
+    return;
+  }
+  btn.dataset.armed = '';
+  await run();
+}
+$('#qCopy').onclick = async () => {
+  const list = unpublishedTexts();
+  if (!list.length) return toast('Нечего копировать');
+  try { await navigator.clipboard.writeText(list.join('\n---\n')); toast(`Скопировано постов: ${list.length}`); }
+  catch { toast('Не удалось скопировать'); }
+};
+$('#qDownload').onclick = () => {
+  const list = unpublishedTexts();
+  if (!list.length) return toast('Очередь пуста');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([list.join('\n---\n') + '\n'], { type: 'text/plain;charset=utf-8' }));
+  a.download = `${S.project.name}-queue.txt`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+};
+$('#qRequeue').onclick = () => arm($('#qRequeue'), async () => {
+  try { const r = await api('POST', '/api/posts/requeue'); $('#queueDlg').close(); toast(`Возвращено в слоты: ${r.count}`); load(); }
+  catch (e) { toast(e.message); }
+});
+function clearHandler(btn, scope) {
+  btn.onclick = () => arm(btn, async () => {
+    try { const r = await api('POST', '/api/posts/clear', { scope }); $('#queueDlg').close(); toast(`Удалено: ${r.deleted}`); load(); }
+    catch (e) { toast(e.message); }
+  });
+}
+clearHandler($('#qClearQueued'), 'queued');
+clearHandler($('#qClearBad'), 'problems');
+clearHandler($('#qClearAll'), 'unpublished');
+
+$('#tabs').onclick = (e) => {
+  const b = e.target.closest('[data-tab]'); if (!b) return;
+  $$('#tabs button').forEach((x) => x.classList.toggle('on', x === b));
+  $('#work').hidden = b.dataset.tab !== 'work';
+  $('#guide').hidden = b.dataset.tab !== 'guide';
+};
+
+function connectSSE() {
+  const es = new EventSource('/api/events');
+  es.addEventListener('update', () => load().catch(() => {}));
+  es.onopen = () => { $('#live').textContent = '● в эфире'; $('#live').style.color = 'var(--ok)'; load().catch(() => {}); };
+  es.onerror = () => { $('#live').textContent = '○ нет связи с программой'; $('#live').style.color = 'var(--err)'; };
+}
+load().then(connectSSE).catch(() => { $('#live').textContent = '○ программа не запущена'; connectSSE(); });
+</script>
+</body>
+</html>
