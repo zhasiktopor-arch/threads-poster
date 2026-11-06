@@ -80,6 +80,7 @@ header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12p
 .detect{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .pill{font-size:12px;padding:3px 8px;border-radius:999px;background:var(--soft);color:var(--muted)}
 .pill.bad{background:var(--errbg);color:var(--err)}
+.pill.long{background:var(--infobg);color:var(--info)}
 .preview{max-height:220px;overflow:auto;border:1px dashed var(--line);border-radius:10px;padding:6px;margin-top:8px}
 .preview div{font-size:12.5px;padding:6px 8px;border-bottom:1px solid var(--soft);display:flex;gap:8px}
 .preview div:last-child{border:0}
@@ -158,7 +159,7 @@ code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12.5px}
 <div class="wrap">
   <div class="dlbar" id="dlBar">
     <span>Установщик для Windows. Скачай архив, распакуй и запусти Install.bat — старые посты сохранятся.</span>
-    <a href="https://github.com/zhasiktopor-arch/threads-poster/releases/download/v1.3/ThreadsPoster-windows.zip"><button type="button">Скачать ZIP</button></a>
+    <a href="https://github.com/zhasiktopor-arch/threads-poster/releases/download/v1.4/ThreadsPoster-windows.zip"><button type="button">Скачать ZIP</button></a>
   </div>
   <header>
     <div class="logo">
@@ -198,7 +199,7 @@ code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12.5px}
         <section class="panel">
           <h2>Новые посты</h2>
           <div class="pbody">
-            <textarea id="compose" rows="9" placeholder="Вставьте один или несколько постов.&#10;&#10;Между постами — строка из трёх дефисов:&#10;---&#10;Следующий пост…&#10;&#10;Они попадут только в проект, который выбран сверху."></textarea>
+            <textarea id="compose" rows="9" placeholder="Один или несколько постов. Между ними отдельная строка:&#10;=== Пост 2 ===&#10;или&#10;---&#10;Эта строка в Threads не уходит."></textarea>
             <div class="detect" id="detect"></div>
             <div class="seg" id="modeSeg">
               <button type="button" data-m="slots" class="on">По лучшему времени</button>
@@ -211,7 +212,7 @@ code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12.5px}
             </div>
             <div class="preview" id="preview" style="display:none"></div>
             <div class="row" style="margin-top:12px">
-              <span class="hint grow" id="addHint">Лимит Threads — 500 символов на пост</span>
+              <span class="hint grow" id="addHint">До 500 в ленте, ещё 10 000 во вложении этого же поста</span>
               <button class="primary" id="addBtn" type="button" disabled>Добавить</button>
             </div>
           </div>
@@ -227,7 +228,8 @@ code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12.5px}
         <h2>Расписание <span class="grow"></span><span class="hint" id="schedHint"></span></h2>
         <div class="pbody" style="padding-bottom:0">
           <div class="row" style="flex-wrap:wrap;margin-bottom:8px">
-            <input id="q" class="search" placeholder="Поиск" aria-label="Поиск по тексту постов">
+            <input id="q" class="search" placeholder="Поиск" aria-label="Поиск по тексту постов" autocomplete="off">
+            <button type="button" class="slim" id="clearSearch" hidden>сбросить</button>
             <button type="button" class="slim" id="openQueue">Очередь</button>
             <div class="seg" id="filterSeg" style="font-weight:400">
               <button type="button" data-f="upcoming" class="on">Впереди</button>
@@ -246,7 +248,7 @@ code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12.5px}
       <h3>Как запустить</h3>
       <p>То, что вы видите здесь, — пример. На компьютере программа ставится один раз, дальше открывается значком.</p>
       <ol>
-        <li>Скачай архив: <a href="https://github.com/zhasiktopor-arch/threads-poster/releases/download/v1.3/ThreadsPoster-windows.zip">Threads Poster для Windows</a>. Кнопка сверху ведёт туда же.</li>
+        <li>Скачай архив: <a href="https://github.com/zhasiktopor-arch/threads-poster/releases/download/v1.4/ThreadsPoster-windows.zip">Threads Poster для Windows</a>. Кнопка сверху ведёт туда же.</li>
         <li>Правой кнопкой по архиву → <b>Извлечь всё…</b>. Из самого архива не запускать — сначала распаковать.</li>
         <li>В распакованной папке дважды кликните <b>Install.bat</b>. Рядом лежит файл «КАК ЗАПУСТИТЬ.txt» с этими же шагами.</li>
         <li>Если Windows пишет «Система Windows защитила ваш компьютер» — <b>Подробнее</b> → <b>Выполнить в любом случае</b>. Это один раз.</li>
@@ -274,6 +276,9 @@ code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12.5px}
     <section class="panel"><div class="pbody">
       <h3>Очередь</h3>
       <ul>
+        <li>Несколько постов вставляются пачкой. Между ними отдельная строка <b>=== Пост 2 ===</b> или <b>---</b>. Сама эта строка не публикуется.</li>
+        <li>В ленте Threads видно 500 символов. Если текст длиннее, хвост уходит <b>во вложение этого же поста</b>, не в комментарий. Потолок одного поста — 10 500. Больше Threads не возьмёт.</li>
+        <li>В посте не больше 5 разных ссылок — иначе Threads его отклонит.</li>
         <li><b>Очередь</b> в расписании: скачать тексты, скопировать, вернуть ошибки в свободные слоты, очистить ожидающие или всё неопубликованное.</li>
         <li>Уже вышедшие посты очистка не трогает. Чужой проект не трогает никогда.</li>
         <li><b>Пауза</b> останавливает только текущий проект. Остальные продолжают выходить.</li>
@@ -420,8 +425,40 @@ let S = null, skew = 0, mode = 'slots', filter = 'upcoming', lastLogId = 0, edit
 let freshIds = new Set();
 let projectId = Number(localStorage.getItem('tp_project') || 0) || 0;
 let projEditId = null, projColor = '#111111';
-const MAXLEN = 500;
-const clen = (s) => [...s].length;
+const POST_MAX = 500;
+const TOTAL_MAX = 10500;
+const graphemes = new Intl.Segmenter('ru', { granularity: 'grapheme' });
+const utf8 = new TextEncoder();
+function pieceCost(segment) {
+  if (/\p{Extended_Pictographic}/u.test(segment)) return utf8.encode(segment).length;
+  return [...segment].length;
+}
+function clen(s) {
+  let n = 0;
+  for (const part of graphemes.segment(String(s || ''))) n += pieceCost(part.segment);
+  return n;
+}
+function linkCount(s) {
+  const found = String(s || '').match(/https?:\/\/[^\s)]+/gi) || [];
+  return new Set(found.map((u) => u.replace(/[.,;:!?]+$/g, '').toLowerCase())).size;
+}
+function isPostSep(line) {
+  const s = line.trim();
+  if (!s) return false;
+  if (/^[-=*_~.\u2014\u2013]{3,}$/.test(s)) return true;
+  if (/^(?:=+|#+\s*|-+|\*+)\s*пост\s*\d+\s*(?:=+|-+|\*+)?$/i.test(s)) return true;
+  if (/^=+\s*.+\s*=+$/.test(s) && s.length <= 60) return true;
+  return false;
+}
+function splitPosts(raw) {
+  const lines = String(raw || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const out = [];
+  let buf = [];
+  const flush = () => { const t = buf.join('\n').trim(); if (t) out.push(t); buf = []; };
+  for (const line of lines) (isPostSep(line) ? flush() : buf.push(line));
+  flush();
+  return out;
+}
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c]));
 const pad = (n) => String(n).padStart(2, '0');
 const hm = (ts) => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
@@ -453,7 +490,6 @@ async function load() {
   render();
 }
 
-function splitPosts(raw) { return raw.split(/^\s*-{3,}\s*$/m).map((s) => s.trim()).filter(Boolean); }
 function upcomingSlots(n) {
   if (!S) return [];
   const { slots_weekday: wd, slots_weekend: we } = S.settings;
@@ -472,14 +508,23 @@ function upcomingSlots(n) {
 }
 function updateCompose() {
   const posts = splitPosts($('#compose').value);
-  const over = posts.map((p, i) => [i, clen(p)]).filter(([, l]) => l > MAXLEN);
-  $('#detect').innerHTML = posts.length
-    ? `<span class="pill">Постов: ${posts.length}</span>` + over.map(([i, l]) => `<span class="pill bad">№${i + 1}: ${l}/500</span>`).join('')
-      + (posts.length === 1 ? `<span class="pill">${clen(posts[0])}/500</span>` : '')
-    : '';
-  $('#addBtn').disabled = !posts.length || over.length > 0;
+  const bits = [];
+  let blocked = !posts.length;
+  if (posts.length) bits.push(`<span class="pill">Постов: ${posts.length}</span>`);
+  posts.forEach((p, i) => {
+    const l = clen(p);
+    const links = linkCount(p);
+    if (l > TOTAL_MAX) { bits.push(`<span class="pill bad">№${i + 1}: ${l}/10500</span>`); blocked = true; }
+    else if (l > POST_MAX) bits.push(`<span class="pill long">№${i + 1}: ${l} · вложение</span>`);
+    else if (posts.length === 1) bits.push(`<span class="pill">${l}/500</span>`);
+    if (links > 5) { bits.push(`<span class="pill bad">№${i + 1}: ссылок ${links}, лимит 5</span>`); blocked = true; }
+  });
+  $('#detect').innerHTML = bits.join('');
+  $('#addBtn').disabled = blocked;
   $('#addBtn').textContent = posts.length > 1 ? `Добавить ${posts.length}` : 'Добавить';
-  $('#addHint').textContent = S ? `Только в «${S.project.name}» · 500 символов` : 'Лимит Threads — 500 символов';
+  $('#addHint').textContent = S
+    ? `Только в «${S.project.name}». 500 в ленте, длинный хвост — во вложении этого поста, не в комментарии.`
+    : '500 в ленте, до 10 000 во вложении этого же поста';
   $('#atBox').style.display = mode === 'at' ? 'grid' : 'none';
   let times = [];
   if (mode === 'slots') times = upcomingSlots(posts.length);
@@ -518,6 +563,9 @@ $('#addBtn').onclick = async () => {
     $('#compose').value = '';
     freshIds = new Set(r.ids || []);
     filter = 'upcoming';
+    query = '';
+    $('#q').value = '';
+    $('#clearSearch').hidden = true;
     $$('#filterSeg button').forEach((x) => x.classList.toggle('on', x.dataset.f === 'upcoming'));
     updateCompose();
     toast(`В «${S.project.name}» добавлено: ${r.count}. Смотри расписание сверху.`);
@@ -652,8 +700,11 @@ function renderTimeline() {
   const next = S.posts.find((p) => p.status === 'queued');
   const freshHtml = fresh.length ? `<div class="just"><h3>Только что добавлено · ${fresh.length}</h3>${fresh.map((p) => postCard(p, next)).join('')}</div>` : '';
   if (!list.length && !fresh.length) {
-    const msg = query ? 'Ничего не найдено' : filter === 'done' ? 'Пока ничего не вышло' : 'Очередь этого проекта пуста';
-    $('#timeline').innerHTML = `<div class="empty">${msg}</div>`;
+    const msg = query
+      ? `Поиск «${esc(query)}» скрыл посты, хотя в очереди они есть.`
+      : filter === 'done' ? 'Пока ничего не вышло' : 'Очередь этого проекта пуста';
+    $('#timeline').innerHTML = `<div class="empty">${msg}${query ? '<div style="margin-top:8px"><button type="button" id="clearQ2">Показать все</button></div>' : ''}</div>`;
+    $('#clearQ2')?.addEventListener('click', () => { $('#q').value = ''; query = ''; $('#clearSearch').hidden = true; renderTimeline(); });
     return;
   }
   const groups = new Map();
@@ -684,7 +735,7 @@ $('#timeline').addEventListener('click', async (e) => {
     if (act === 'edit') {
       editId = id; $('#editTitle').textContent = `Пост #${id}`;
       $('#eText').value = p.text; $('#eTime').value = toLocalInput(p.status === 'queued' ? p.scheduled_at : now() + 10 * 60e3);
-      $('#eCount').textContent = `${clen(p.text)}/500`;
+      $('#eCount').textContent = countLabel(p.text);
       $('#eProject').innerHTML = S.projects.map((pr) => `<option value="${pr.id}"${pr.id === S.project.id ? ' selected' : ''}>${esc(pr.name)}${pr.connected ? ' · @' + esc(pr.username) : ''}</option>`).join('');
       $('#editDlg').showModal(); return;
     }
@@ -692,8 +743,19 @@ $('#timeline').addEventListener('click', async (e) => {
   } catch (err) { toast(err.message); }
 });
 $$('#filterSeg button').forEach((b) => b.onclick = () => { filter = b.dataset.f; $$('#filterSeg button').forEach((x) => x.classList.toggle('on', x === b)); renderTimeline(); });
-$('#q').addEventListener('input', () => { query = $('#q').value.trim().toLowerCase(); renderTimeline(); });
-$('#eText').addEventListener('input', () => { const l = clen($('#eText').value); $('#eCount').textContent = `${l}/500`; $('#eCount').style.color = l > 500 ? 'var(--err)' : ''; });
+$('#q').addEventListener('input', () => { query = $('#q').value.trim().toLowerCase(); $('#clearSearch').hidden = !query; renderTimeline(); });
+$('#clearSearch').onclick = () => { $('#q').value = ''; query = ''; $('#clearSearch').hidden = true; renderTimeline(); };
+function countLabel(text) {
+  const l = clen(text);
+  if (l > TOTAL_MAX) return `${l}/10500`;
+  if (l > POST_MAX) return `${l} · вложение`;
+  return `${l}/500`;
+}
+$('#eText').addEventListener('input', () => {
+  const l = clen($('#eText').value);
+  $('#eCount').textContent = countLabel($('#eText').value);
+  $('#eCount').style.color = l > TOTAL_MAX ? 'var(--err)' : l > POST_MAX ? 'var(--info)' : '';
+});
 $('#eCopy').onclick = async () => {
   try { await navigator.clipboard.writeText($('#eText').value); toast('Текст скопирован'); }
   catch { toast('Не удалось скопировать'); }

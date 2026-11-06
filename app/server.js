@@ -20,7 +20,9 @@ const DEFAULT_DATA_DIR = process.platform === 'win32'
 const DATA_DIR = process.env.DATA_DIR || DEFAULT_DATA_DIR;
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const MAX_LEN = 500;
+const POST_MAX = 500;
+const ATTACH_MAX = 10000;
+const MAX_LEN = POST_MAX + ATTACH_MAX;
 const IS_MAC = process.platform === 'darwin';
 const LISTEN_HOST = process.env.HOST || '127.0.0.1';
 const ALLOW_ANY_HOST = process.env.ALLOW_ANY_HOST === '1';
@@ -170,6 +172,71 @@ function broadcast() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const safeColor = (c) => (COLORS.includes(c) ? c : '#111111');
+const graphemes = new Intl.Segmenter('ru', { granularity: 'grapheme' });
+
+function pieceCost(segment) {
+  if (/\p{Extended_Pictographic}/u.test(segment)) return Buffer.byteLength(segment, 'utf8');
+  return [...segment].length;
+}
+function threadsLen(s) {
+  let n = 0;
+  for (const part of graphemes.segment(String(s || ''))) n += pieceCost(part.segment);
+  return n;
+}
+const len = threadsLen;
+
+function isPostSep(line) {
+  const s = line.trim();
+  if (!s) return false;
+  if (/^[-=*_~.\u2014\u2013]{3,}$/.test(s)) return true;
+  if (/^(?:=+|#+\s*|-+|\*+)\s*пост\s*\d+\s*(?:=+|-+|\*+)?$/i.test(s)) return true;
+  if (/^=+\s*.+\s*=+$/.test(s) && s.length <= 60) return true;
+  return false;
+}
+function splitPosts(raw) {
+  const lines = String(raw || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const out = [];
+  let buf = [];
+  const flush = () => {
+    const t = buf.join('\n').trim();
+    if (t) out.push(t);
+    buf = [];
+  };
+  for (const line of lines) (isPostSep(line) ? flush() : buf.push(line));
+  flush();
+  return out;
+}
+
+function linkCount(s) {
+  const found = String(s || '').match(/https?:\/\/[^\s)]+/gi) || [];
+  return new Set(found.map((u) => u.replace(/[.,;:!?]+$/g, '').toLowerCase())).size;
+}
+function splitForThreads(raw) {
+  const full = String(raw || '').trim();
+  if (!full) throw bad('Пустой текст');
+  if (threadsLen(full) <= POST_MAX) return { text: full, attachment: '' };
+  if (threadsLen(full) > MAX_LEN) {
+    throw bad(`Текст на ${threadsLen(full)} символов. Threads берёт 500 в пост и ещё 10 000 во вложение этого же поста, не в комментарий. Потолок — ${MAX_LEN}.`);
+  }
+  let n = 0;
+  let i = 0;
+  let breakAt = 0;
+  for (const part of graphemes.segment(full)) {
+    const c = pieceCost(part.segment);
+    if (n + c > POST_MAX) break;
+    i += part.segment.length;
+    n += c;
+    if (part.segment === '\n' || part.segment === ' ') breakAt = i;
+  }
+  let cut = i;
+  if (cut < full.length && breakAt > cut - 80) cut = breakAt;
+  const text = full.slice(0, cut).trimEnd();
+  const attachment = full.slice(cut).trim();
+  if (!text || threadsLen(attachment) > ATTACH_MAX) {
+    throw bad(`Не удалось уложить текст в лимит Threads (${threadsLen(full)} символов).`);
+  }
+  return { text, attachment };
+}
 
 function userFromText(s) {
   const t = String(s || '').trim();
@@ -320,7 +387,10 @@ async function assertSameAccount(pid, proj) {
 }
 
 async function publishToThreads(pid, text) {
-  const c = await th(pid, 'POST', 'me/threads', { media_type: 'TEXT', text });
+  const parts = splitForThreads(text);
+  const params = { media_type: 'TEXT', text: parts.text };
+  if (parts.attachment) params.text_attachment = JSON.stringify({ plaintext: parts.attachment });
+  const c = await th(pid, 'POST', 'me/threads', params);
   await sleep(4000);
   let pub;
   for (let i = 0; ; i++) {
@@ -410,7 +480,8 @@ async function tickProject(proj) {
       r = await publishToThreads(pid, p.text);
     }
     upd.done.run(r.id, r.permalink, dry ? 1 : 0, Date.now(), p.id);
-    log('ok', dry ? `Пост #${p.id} «опубликован» в тестовом режиме проекта «${proj.name}»` : `Пост #${p.id} опубликован в @${pget(pid, 'username')}`, p.id, pid);
+    const long = !dry && len(p.text) > POST_MAX ? ' · хвост ушёл во вложение этого поста, не в комментарий' : '';
+    log('ok', (dry ? `Пост #${p.id} «опубликован» в тестовом режиме проекта «${proj.name}»` : `Пост #${p.id} опубликован в @${pget(pid, 'username')}`) + long, p.id, pid);
     notify(dry ? 'Threads · тест' : 'Опубликовано в Threads', `${proj.name}: ${p.text}`);
   } catch (e) {
     if (e.accountMismatch) {
@@ -478,7 +549,6 @@ function nextFreeSlots(pid, n) {
   return out;
 }
 
-const len = (s) => [...s].length;
 const normText = (s) => String(s).trim().replace(/\s+/g, ' ').toLowerCase();
 
 function findDupes(pid, texts) {
@@ -683,10 +753,12 @@ function deleteProject(id) {
 
 function addPosts(pid, b) {
   const proj = db.prepare('SELECT name FROM projects WHERE id=?').get(pid);
-  const texts = (Array.isArray(b.texts) ? b.texts : []).map((t) => String(t).trim()).filter(Boolean);
+  const texts = (Array.isArray(b.texts) ? b.texts : []).flatMap((t) => splitPosts(t));
   if (!texts.length) throw bad('Нет текста постов');
   const tooLong = texts.findIndex((t) => len(t) > MAX_LEN);
-  if (tooLong >= 0) throw bad(`Пост №${tooLong + 1} длиннее ${MAX_LEN} символов (${len(texts[tooLong])})`);
+  if (tooLong >= 0) throw bad(`Пост №${tooLong + 1} длиннее ${MAX_LEN} символов (${len(texts[tooLong])}). 500 уходит в ленту, ещё 10 000 — во вложение этого же поста, не в комментарий.`);
+  const tooManyLinks = texts.findIndex((t) => linkCount(t) > 5);
+  if (tooManyLinks >= 0) throw bad(`В посте №${tooManyLinks + 1} больше 5 ссылок. Threads такой пост отклонит.`);
   const dupes = findDupes(pid, texts);
   if (dupes.length && !b.force) {
     const e = bad(formatDupes(dupes));
@@ -767,7 +839,8 @@ const routes = {
     if (p.status === 'published' || p.status === 'publishing') throw bad('Опубликованный пост не редактируется');
     const text = b.text !== undefined ? String(b.text).trim() : p.text;
     if (!text) throw bad('Пустой текст');
-    if (len(text) > MAX_LEN) throw bad(`Длиннее ${MAX_LEN} символов`);
+    if (len(text) > MAX_LEN) throw bad(`Длиннее ${MAX_LEN} символов. Threads берёт 500 в пост и 10 000 во вложение, не в комментарий.`);
+    if (linkCount(text) > 5) throw bad('В посте больше 5 ссылок. Threads его отклонит.');
     const at = b.scheduled_at !== undefined ? Number(b.scheduled_at) : p.scheduled_at;
     if (!at) throw bad('Неверное время');
     let dest = p.project_id;
