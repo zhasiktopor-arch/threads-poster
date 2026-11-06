@@ -48,7 +48,11 @@ header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12p
 #projList{display:contents}
 .proj{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:7px 12px;font-size:13px;text-align:left;max-width:100%}
 .proj.on{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
-.proj.pause{opacity:.7}
+.proj.bad{border-color:var(--err)}
+.check{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--soft);font-size:13.5px}
+.check.ok{background:var(--okbg);color:var(--ok)}
+.check.bad{background:var(--errbg);color:var(--err)}
+.check.wait{background:var(--warnbg);color:var(--warn)}
 .proj .sw{width:9px;height:9px;border-radius:50%;flex:none}
 .proj .nm{display:block;font-weight:650}
 .proj .meta{display:block;color:var(--muted);font-size:11.5px;font-weight:500}
@@ -153,7 +157,7 @@ code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12.5px}
 <div class="wrap">
   <div class="dlbar" id="dlBar">
     <span>Установщик для Windows. Скачай архив, распакуй и запусти Install.bat — старые посты сохранятся.</span>
-    <a href="https://github.com/zhasiktopor-arch/threads-poster/archive/refs/heads/main.zip"><button type="button">Скачать ZIP</button></a>
+    <a href="https://github.com/zhasiktopor-arch/threads-poster/releases/download/v1.2/ThreadsPoster-windows.zip"><button type="button">Скачать ZIP</button></a>
   </div>
   <header>
     <div class="logo">
@@ -238,7 +242,7 @@ code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12.5px}
       <h3>Как запустить</h3>
       <p>То, что вы видите здесь, — пример. На компьютере программа ставится один раз, дальше открывается значком.</p>
       <ol>
-        <li>Скачай архив: <a href="https://github.com/zhasiktopor-arch/threads-poster/archive/refs/heads/main.zip">Threads Poster для Windows</a>. Кнопка сверху ведёт туда же.</li>
+        <li>Скачай архив: <a href="https://github.com/zhasiktopor-arch/threads-poster/releases/download/v1.2/ThreadsPoster-windows.zip">Threads Poster для Windows</a>. Кнопка сверху ведёт туда же.</li>
         <li>Правой кнопкой по архиву → <b>Извлечь всё…</b>. Из самого архива не запускать — сначала распаковать.</li>
         <li>В распакованной папке дважды кликните <b>Install.bat</b>. Рядом лежит файл «КАК ЗАПУСТИТЬ.txt» с этими же шагами.</li>
         <li>Если Windows пишет «Система Windows защитила ваш компьютер» — <b>Подробнее</b> → <b>Выполнить в любом случае</b>. Это один раз.</li>
@@ -306,6 +310,7 @@ code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12.5px}
       <h4>Подключение к Threads</h4>
       <div id="connState" class="hint" style="margin-bottom:8px"></div>
       <label class="f">Токен доступа — только этого проекта</label>
+      <p class="hint" id="tokenExpect" style="margin:0 0 6px"></p>
       <input id="token" type="password" placeholder="THAA…" autocomplete="off">
       <label class="f">Секрет приложения — необязательно, помогает получить токен на 60 дней</label>
       <input id="appSecret" type="password" placeholder="32 символа" autocomplete="off">
@@ -374,8 +379,9 @@ code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:12.5px}
   <div class="db">
     <label class="f">Название</label>
     <input id="pName" maxlength="40" placeholder="Клиника, матрасы, личный…">
-    <label class="f">Заметка — кому этот аккаунт, чтобы не перепутать</label>
-    <input id="pNote" maxlength="140" placeholder="Threads @clinic">
+    <label class="f">Ссылка на аккаунт этого проекта</label>
+    <input id="pNote" maxlength="200" placeholder="https://www.threads.com/@raycon.kz">
+    <div id="pCheck" class="check wait">Вставь ссылку. Потом в Настройках — токен именно этого @ника. Чужой токен не сохранится.</div>
     <label class="f">Цвет</label>
     <div class="colors" id="pColors"></div>
     <p class="hint">Своя очередь, своё расписание, свой токен. В другие проекты это не попадает.</p>
@@ -510,30 +516,51 @@ $('#addBtn').onclick = async () => {
   } catch (e) { toast(e.message); updateCompose(); }
 };
 
+function userFromText(s) {
+  const t = String(s || '').trim();
+  if (!t) return '';
+  const url = t.match(/(?:threads\.com|threads\.net)\/@([A-Za-z0-9._]+)/i);
+  if (url) return url[1].toLowerCase();
+  if (/^@?[A-Za-z0-9._]{2,30}$/.test(t)) return t.replace(/^@/, '').toLowerCase();
+  return '';
+}
 function renderBanner() {
   const p = S.project, st = S.settings;
-  const acc = st.connected ? `@${st.username}` : 'аккаунт не подключён';
+  const expect = st.expect_user || '';
+  const actual = userFromText(st.username);
+  const acc = st.connected ? `@${st.username}` : (expect ? `ждёт @${expect}` : 'аккаунт не подключён');
   let cls = 'banner', text;
-  if (p.paused) {
+  if (st.connected && expect && actual !== expect) {
+    cls += ' pause';
+    text = `Токен от @${st.username}, а этот проект для @${expect}. Посты не уйдут, пока не вставишь токен @${expect}.`;
+  } else if (p.paused) {
     cls += ' pause';
     text = 'Пауза. Очередь на месте, но из этого проекта ничего не публикуется. Остальные проекты работают сами.';
-  } else if (!st.dry_run && st.connected) {
-    cls += ' live';
-    text = `Боевой режим. Эти посты уходят только в ${acc}. Чужая очередь сюда не попадает.`;
-  } else if (!st.dry_run) {
+  } else if (!expect) {
     cls += ' pause';
-    text = 'Боевой режим включён, но аккаунт не подключён — посты ждут и никуда не денутся.';
+    text = 'Сначала «Изменить» и вставь ссылку на аккаунт. Без неё токен в настройках не примется — так не перепутаешь проекты.';
+  } else if (!st.connected) {
+    cls += ' pause';
+    text = `Этот проект только для @${expect}. Настройки → токен этого аккаунта. Токен другого ника не сохранится.`;
+  } else if (!st.dry_run) {
+    cls += ' live';
+    text = `Совпадает: токен @${actual}. Боевой режим, посты уходят только туда.`;
   } else {
-    text = 'Тестовый режим: в Threads ничего не отправляется. Подключите аккаунт в настройках и включите боевой, когда тексты точно этого проекта.';
+    text = `Совпадает: токен @${actual}. Сейчас тест — в Threads ничего не уходит. Включи боевой, когда очередь точно этого аккаунта.`;
   }
+  const link = /^https?:\/\//i.test(p.note || '') ? `<div class="hint"><a href="${esc(p.note)}" target="_blank" rel="noopener">${esc(p.note)}</a></div>` : '';
   $('#banner').className = cls;
-  $('#banner').innerHTML = `<b>${esc(p.name)}</b> · ${esc(acc)}<div>${esc(text)}</div>${p.note ? `<div class="hint">${esc(p.note)}</div>` : ''}`;
+  $('#banner').innerHTML = `<b>${esc(p.name)}</b> · ${esc(acc)}<div>${esc(text)}</div>${link}`;
 }
 function renderProjects() {
   $('#projList').innerHTML = S.projects.map((p) => {
-    const acc = p.connected ? '@' + p.username : 'без аккаунта';
+    let acc = 'без ссылки на аккаунт';
+    if (p.mismatch) acc = `токен @${p.username} ≠ @${p.expect}`;
+    else if (p.connected && p.expect) acc = `@${p.username} совпал`;
+    else if (p.connected) acc = '@' + p.username;
+    else if (p.expect) acc = `ждёт @${p.expect}`;
     const modeLabel = p.paused ? 'пауза' : (p.dry_run ? 'тест' : 'боевой');
-    return `<button type="button" class="proj ${p.id === S.project.id ? 'on' : ''} ${p.paused ? 'pause' : ''}" data-pid="${p.id}">
+    return `<button type="button" class="proj ${p.id === S.project.id ? 'on' : ''} ${p.paused ? 'pause' : ''} ${p.mismatch ? 'bad' : ''}" data-pid="${p.id}">
       <i class="sw" style="background:${esc(p.color)}"></i>
       <span><span class="nm">${esc(p.name)}</span><span class="meta">${esc(acc)} · ${p.queued} в очереди · ${modeLabel}</span></span>
     </button>`;
@@ -543,9 +570,12 @@ function renderProjects() {
 
 function render() {
   const st = S.settings;
-  $('#acct').innerHTML = st.connected
+  const expect = st.expect_user || '';
+  const actual = userFromText(st.username);
+  const badTok = st.connected && expect && actual !== expect;
+  $('#acct').innerHTML = st.connected && !badTok
     ? `<span class="dot on"></span><span>@${esc(st.username)}</span>`
-    : `<span class="dot"></span><span>не подключён</span>`;
+    : `<span class="dot"></span><span>${badTok ? 'не тот токен' : (expect ? 'ждёт @' + esc(expect) : 'не подключён')}</span>`;
   const m = $('#mode');
   m.className = `chip mode ${st.dry_run ? 'test' : 'live'}`;
   m.textContent = st.dry_run ? 'Тестовый режим' : 'Боевой режим';
@@ -684,9 +714,20 @@ function fillSettings() {
   const st = S.settings;
   $('#settingsTitle').textContent = `Настройки · ${S.project.name}`;
   $('#settingsScope').textContent = `Токен, режим и слоты меняются только у «${S.project.name}». Другие проекты не затрагиваются.`;
-  $('#connState').innerHTML = st.connected
-    ? `Подключён <b>@${esc(st.username)}</b>${st.token_expires_at ? ` · токен до ${new Date(st.token_expires_at).toLocaleDateString('ru-RU')} (продлевается сам)` : ''}`
-    : 'Не подключён. Пока у этого проекта работает только тестовый режим.';
+  const expect = st.expect_user || '';
+  const actual = userFromText(st.username);
+  $('#tokenExpect').textContent = !expect
+    ? 'Сначала «Изменить» → ссылка на аккаунт. Без ссылки токен не приму.'
+    : (st.connected && actual === expect
+      ? `Токен совпадает с @${expect}.`
+      : `Сюда вставляй только токен @${expect}. Другой ник не сохранится.`);
+  $('#connState').innerHTML = !expect
+    ? 'Аккаунт проекта ещё не указан.'
+    : (st.connected && actual === expect
+      ? `Подключён <b>@${esc(st.username)}</b> — это тот же ник, что в ссылке проекта.${st.token_expires_at ? ` Токен до ${new Date(st.token_expires_at).toLocaleDateString('ru-RU')}.` : ''}`
+      : (st.connected
+        ? `Токен от <b>@${esc(st.username)}</b>, а проект ждёт <b>@${esc(expect)}</b>. Отключи и вставь правильный.`
+        : `Не подключён. Нужен токен <b>@${esc(expect)}</b>.`));
   $('#token').value = ''; $('#appSecret').value = '';
   $('#appSecret').placeholder = st.has_app_secret ? 'сохранён ••••' : '32 символа';
   $('#sLive').checked = !st.dry_run;
@@ -742,6 +783,28 @@ function paintColors() {
   $('#pColors').innerHTML = (S?.colors || []).map((c) => `<button type="button" data-c="${c}" class="${c === projColor ? 'on' : ''}" style="background:${c}" aria-label="цвет"></button>`).join('');
 }
 $('#pColors').onclick = (e) => { const b = e.target.closest('[data-c]'); if (!b) return; projColor = b.dataset.c; paintColors(); };
+function paintAccountCheck() {
+  const el = $('#pCheck');
+  const expect = userFromText($('#pNote').value);
+  const editing = !!projEditId;
+  const connected = editing && S.settings.connected;
+  const actual = editing ? userFromText(S.settings.username) : '';
+  el.className = 'check';
+  if (!expect) {
+    el.classList.add('wait');
+    el.textContent = 'Вставь ссылку вида https://www.threads.com/@ник — по ней я пойму, чей токен ждать.';
+  } else if (!connected) {
+    el.classList.add('wait');
+    el.textContent = `Жду токен @${expect}. Сохрани и открой Настройки этого проекта. Чужой токен не сохранится.`;
+  } else if (actual === expect) {
+    el.classList.add('ok');
+    el.textContent = `Совпадает. Токен от @${actual}, ссылка тоже на @${expect}.`;
+  } else {
+    el.classList.add('bad');
+    el.textContent = `Не совпадает. Токен от @${S.settings.username}, а ссылка — @${expect}. Посты этого проекта не уйдут.`;
+  }
+}
+$('#pNote').addEventListener('input', paintAccountCheck);
 function openCreate() {
   projEditId = null;
   $('#projTitle').textContent = 'Новый проект';
@@ -751,7 +814,7 @@ function openCreate() {
   $('#projDanger').style.display = 'none';
   $('#delProject').dataset.armed = '';
   $('#delProject').textContent = 'Удалить проект и все его посты';
-  paintColors(); $('#projDlg').showModal();
+  paintColors(); paintAccountCheck(); $('#projDlg').showModal();
 }
 function openEditProject() {
   projEditId = S.project.id;
@@ -761,7 +824,7 @@ function openEditProject() {
   $('#projDanger').style.display = S.projects.length > 1 ? '' : 'none';
   $('#delProject').dataset.armed = '';
   $('#delProject').textContent = 'Удалить проект и все его посты';
-  paintColors(); $('#projDlg').showModal();
+  paintColors(); paintAccountCheck(); $('#projDlg').showModal();
 }
 $('#addProject').onclick = openCreate;
 $('#editProject').onclick = openEditProject;

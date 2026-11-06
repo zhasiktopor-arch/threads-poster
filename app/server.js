@@ -171,6 +171,18 @@ function broadcast() {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const safeColor = (c) => (COLORS.includes(c) ? c : '#111111');
 
+function userFromText(s) {
+  const t = String(s || '').trim();
+  if (!t) return '';
+  const url = t.match(/(?:threads\.com|threads\.net)\/@([A-Za-z0-9._]+)/i);
+  if (url) return url[1].toLowerCase();
+  if (/^@?[A-Za-z0-9._]{2,30}$/.test(t)) return t.replace(/^@/, '').toLowerCase();
+  return '';
+}
+function expectUser(pid, note) {
+  return userFromText(pget(pid, 'expect_user')) || userFromText(note || '');
+}
+
 async function call(url, method = 'GET', params = {}) {
   const u = new URL(url);
   const opts = { method, signal: AbortSignal.timeout(30000) };
@@ -224,7 +236,7 @@ async function exchangeToken(pid) {
 }
 
 async function connectToken(pid, token, appSecret) {
-  const proj = db.prepare('SELECT name FROM projects WHERE id=?').get(pid);
+  const proj = db.prepare('SELECT name, note FROM projects WHERE id=?').get(pid);
   if (!proj) throw bad('Проект не найден');
   const backup = ['token', 'user_id', 'username', 'app_secret', 'token_expires_at', 'token_refreshed_at']
     .reduce((a, k) => ({ ...a, [k]: pget(pid, k) }), {});
@@ -236,6 +248,13 @@ async function connectToken(pid, token, appSecret) {
   let me;
   try {
     me = await fetchProfile(pid);
+    const expect = expectUser(pid, proj.note);
+    if (!expect) {
+      throw bad(`Сначала «Изменить» и вставь ссылку на аккаунт этого проекта, например https://www.threads.com/@ник. Потом сюда — токен именно этого ника.`);
+    }
+    if (userFromText(me.username) !== expect) {
+      throw bad(`Токен от @${me.username}, а проект «${proj.name}» ждёт @${expect}. Это другой аккаунт — токен не сохранён.`);
+    }
     assertAccountFree(me.id, me.username || '', pid);
     if (backup.user_id && String(backup.user_id) !== String(me.id)) {
       const queued = db.prepare("SELECT COUNT(*) c FROM posts WHERE project_id=? AND status IN ('queued','failed','missed','publishing')").get(pid).c;
@@ -285,6 +304,13 @@ async function assertSameAccount(pid, proj) {
       `Стоп: токен проекта «${proj.name}» сейчас от @${me.username}, а проект привязан к @${pget(pid, 'username')}. Посты не отправлены, проект на паузе.`,
     ), { accountMismatch: true });
   }
+  const expect = expectUser(pid, proj.note);
+  if (expect && userFromText(me.username) !== expect) {
+    db.prepare('UPDATE projects SET paused=1 WHERE id=?').run(pid);
+    throw Object.assign(new Error(
+      `Стоп: токен сейчас от @${me.username}, а проект «${proj.name}» отмечен как @${expect}. Посты не отправлены.`,
+    ), { accountMismatch: true });
+  }
   if (!uid) {
     assertAccountFree(me.id, me.username || '', pid);
     pset(pid, 'user_id', me.id);
@@ -324,6 +350,7 @@ function updateCaffeinate() {
 
 let busy = false;
 const warnedNoToken = new Set();
+const warnedMismatch = new Set();
 const upd = {
   publishing: db.prepare("UPDATE posts SET status='publishing' WHERE id=?"),
   done: db.prepare("UPDATE posts SET status='published', threads_id=?, permalink=?, simulated=?, error=NULL, published_at=? WHERE id=?"),
@@ -335,6 +362,16 @@ const upd = {
 async function tickProject(proj) {
   const pid = proj.id;
   if (proj.paused) return;
+  const expect = expectUser(pid, proj.note);
+  const actual = userFromText(pget(pid, 'username'));
+  if (expect && actual && expect !== actual) {
+    if (!warnedMismatch.has(pid)) {
+      warnedMismatch.add(pid);
+      log('error', `«${proj.name}»: токен @${actual}, а проект для @${expect}. Посты не публикую.`, null, pid);
+    }
+    return;
+  }
+  warnedMismatch.delete(pid);
   await maybeRefreshToken(pid);
   const now = Date.now();
   const maxLate = Number(pget(pid, 'max_late_hours')) * 3600e3;
@@ -502,6 +539,7 @@ function publicSettings(pid) {
     connected: !!pget(pid, 'token'),
     has_app_secret: !!pget(pid, 'app_secret'),
     username: pget(pid, 'username'),
+    expect_user: expectUser(pid, db.prepare('SELECT note FROM projects WHERE id=?').get(pid)?.note || ''),
     token_expires_at: Number(pget(pid, 'token_expires_at') || 0),
   };
 }
@@ -516,6 +554,8 @@ function listProjects() {
     queued: db.prepare("SELECT COUNT(*) c FROM posts WHERE project_id=? AND status='queued'").get(p.id).c,
     problems: db.prepare("SELECT COUNT(*) c FROM posts WHERE project_id=? AND status IN ('failed','missed')").get(p.id).c,
     username: pget(p.id, 'username'),
+    expect: expectUser(p.id, p.note),
+    mismatch: !!(expectUser(p.id, p.note) && userFromText(pget(p.id, 'username')) && expectUser(p.id, p.note) !== userFromText(pget(p.id, 'username'))),
     connected: !!pget(p.id, 'token'),
     dry_run: pget(p.id, 'dry_run') === '1',
   }));
@@ -583,10 +623,12 @@ function createProject(b) {
   if (!name) throw bad('Введите название проекта');
   const count = db.prepare('SELECT COUNT(*) c FROM projects').get().c;
   const color = COLORS.includes(b.color) ? b.color : COLORS[count % COLORS.length];
-  const note = String(b.note || '').trim().slice(0, 140);
+  const note = String(b.note || '').trim().slice(0, 200);
   const info = db.prepare('INSERT INTO projects(name, color, note, paused, created_at) VALUES(?,?,?,0,?)').run(name, color, note, Date.now());
   const id = Number(info.lastInsertRowid);
   pset(id, 'dry_run', '1');
+  const nick = userFromText(note);
+  if (nick) pset(id, 'expect_user', nick);
   gset('active_project_id', id);
   log('info', `Создан проект «${name}». Своя очередь, своё время, свой аккаунт — с остальными не смешивается.`, null, id);
   return { ok: true, id };
@@ -604,7 +646,10 @@ function updateProject(id, b) {
     if (!COLORS.includes(b.color)) throw bad('Неверный цвет');
     color = b.color;
   }
-  if (b.note !== undefined) note = String(b.note).trim().slice(0, 140);
+  if (b.note !== undefined) {
+    note = String(b.note).trim().slice(0, 200);
+    pset(id, 'expect_user', userFromText(note));
+  }
   if (b.paused !== undefined) paused = b.paused ? 1 : 0;
   db.prepare('UPDATE projects SET name=?, color=?, note=?, paused=? WHERE id=?').run(name, color, note, paused, id);
   if (paused && !p.paused) log('warn', `Проект «${name}» на паузе — посты не публикуются`, null, id);
